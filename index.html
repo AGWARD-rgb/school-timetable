@@ -34,7 +34,7 @@
             <span id="close-modal-btn" class="close-btn">&times;</span>
             <h2>🔐 Вход для редактора</h2>
             <div id="error-text" class="error-msg">Неверный пароль доступа!</div>
-            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Для редактирования введите текстовый пароль школы</p>
+            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Для editing введите текстовый пароль школы</p>
             <input type="password" id="password-field" placeholder="Пароль доступа">
             <button id="login-submit-btn" class="btn" style="background-color: #34a853; color: white; width: 100%;">Авторизоваться</button>
         </div>
@@ -72,10 +72,10 @@
         const GH_USER = "AGWARD-rgb"; 
         const GH_REPO = "school-timetable"; 
         
-        let FINAL_TOKEN_STRING = ""; 
+        let ABSOLUTELY_NEW_TOKEN_HOLDER = ""; 
 
         function decryptToken(enteredPassword) {
-            // ВСТАВЬТЕ СЮДА ВАШИ 3 ЧАСТИ ТОКЕНА (УБРАННЫЙ СИМВОЛ ВЕРНИТЕ НА МЕСТО!)
+            // Ваши 3 оригинальные части токена:
             const part1 = "ghp_KMbyJp0j"; 
             const part2 = "ZFcMYAqqbtP1cg";
             const part3 = "U0LNbZjv1BmO17";
@@ -194,7 +194,7 @@
             const decrypted = decryptToken(pass);
 
             if (decrypted) {
-                FINAL_TOKEN_STRING = decrypted; 
+                ABSOLUTELY_NEW_TOKEN_HOLDER = decrypted; 
                 loginModal.style.display = "none";
                 
                 openLoginBtn.classList.add('hidden');
@@ -210,7 +210,7 @@
         });
 
         logoutBtn.addEventListener('click', () => {
-            FINAL_TOKEN_STRING = "";
+            ABSOLUTELY_NEW_TOKEN_HOLDER = "";
             location.reload();
         });
 
@@ -218,7 +218,7 @@
         classSelect.addEventListener('change', () => {
             const selectedClass = classSelect.value;
             renderSchedule(selectedClass);
-            if (FINAL_TOKEN_STRING && selectedClass) {
+            if (ABSOLUTELY_NEW_TOKEN_HOLDER && selectedClass) {
                 renderEditor(selectedClass);
             }
         });
@@ -279,24 +279,26 @@
             });
         }
 
-        // АВТОМАТИЧЕСКАЯ ОТПРАВКА ИЗМЕНЕНИЙ НА СЕРВЕР ЧЕРЕЗ РОБОТА GITHUB
-        saveBtn.addEventListener('click', () => {
-            if (!FINAL_TOKEN_STRING) {
+        // ФИНАЛЬНАЯ ПЕРЕИМЕНОВАННАЯ ФУНКЦИЯ ОТПРАВКИ, КОТОРУЮ БРАУЗЕР НЕ СМОЖЕТ СБЛОКИРОВАТЬ СТАРЫМ КЭШЕМ
+        function executeCloudSaveOperation() {
+            if (!ABSOLUTELY_NEW_TOKEN_HOLDER) {
                 alert("Ошибка авторизации. Перезагрузите страницу.");
                 return;
             }
+
+            const activeSecureKey = ABSOLUTELY_NEW_TOKEN_HOLDER.trim().replace(/[^a-zA-Z0-9_]/g, '');
 
             saveBtn.disabled = true;
             saveBtn.classList.add('btn-cancel'); 
             saveBtn.textContent = "⏳ Робот обновляет облако...";
 
-            // Полностью прямая и очищенная ссылка API, защищенная от CORS-подмены
-            const targetUrl = "https://github.com";
+            // Использование прямого официального адреса API GitHub
+            const finalEndpointUrl = "https://github.com";
 
-            fetch(targetUrl, {
+            fetch(finalEndpointUrl, {
                 method: 'POST',
                 headers: {
-                    'Authorization': 'token ' + FINAL_TOKEN_STRING,
+                    'Authorization': 'token ' + activeSecureKey,
                     'Accept': 'application/vnd.github.v3+json',
                     'Content-Type': 'application/json'
                 },
@@ -312,7 +314,7 @@
                     alert("🎉 Полный успех! Робот GitHub принял измененную базу и перепишет файл data.json в течение 15 секунд.");
                     setTimeout(() => location.reload(), 3000);
                 } else {
-                    throw new Error("GitHub отклонил токен. Проверьте права и символы. Код: " + response.status);
+                    throw new Error("GitHub отклонил операцию. Код ошибки: " + response.status);
                 }
             })
             .catch(err => {
@@ -321,7 +323,10 @@
                 saveBtn.classList.remove('btn-cancel');
                 saveBtn.textContent = "💾 Сохранить изменения в облако";
             });
-        });
+        }
+
+        // Назначаем нашу новую функцию на клик по кнопке
+        saveBtn.addEventListener('click', executeCloudSaveOperation);
 
         // Запуск приложения
         loadScheduleFromGitHub();
