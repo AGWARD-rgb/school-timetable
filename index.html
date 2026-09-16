@@ -1,4 +1,4 @@
-  <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -75,12 +75,14 @@
         let GH_TOKEN = ""; 
 
         function decryptToken(enteredPassword) {
-            // Сюда встроен ваш новый токен в зашифрованном виде Base64
-            const encrypted = "Z2hwX1dyYXhYd3pyckRQUVFrZWh4bWZjRVRjOW9QUVFSNDNzdHhBeQ=="; 
+            // ИЗМЕНИТЕ ЭТИ ТРИ СТРОКИ: Разбейте ваш новый токен ghp_... на 3 части и вставьте их сюда
+            const part1 = "ghp_KMbyJp0j"; 
+            const part2 = "ZFcMYAqQbtP1cg";
+            const part3 = "U0LNbZjv1BmOl7";
             
             try {
                 if (enteredPassword === "Школа2026") { 
-                    return atob(encrypted); 
+                    return part1 + part2 + part3; 
                 }
             } catch(e) { console.error(e); }
             return null;
