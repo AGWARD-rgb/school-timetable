@@ -83,7 +83,8 @@
             try {
                 if (enteredPassword === "Школа2026") { 
                     // Фильтр автоматически удалит любые невидимые пробелы, мусор или скрытые знаки форматирования
-                    return (part1 + part2 + part3).replace(/[^a-zA-Z0-9_]/g, ''); 
+                    return part1 + part2 + part3;
+
                 }
             } catch(e) { console.error(e); }
             return null;
