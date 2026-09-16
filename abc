@@ -1,1 +1,25 @@
 abc/.github/workflows/update-schedule.yml
+name: Update School Timetable
+
+on:
+  repository_dispatch:
+    types: [update-json]
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update data.json
+        run: |
+          echo '${{ github.event.client_payload.schedule_data }}' > data.json
+
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name "Schedule Robot"
+          git config --global user.email "robot@github.com"
+          git add data.json
+          git commit -m "Автоматическое обновление расписания от учителя" || exit 0
+          git push
