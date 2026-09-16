@@ -1,50 +1,12 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Электронное расписание школы</title>
-    <link rel="stylesheet" href="style.css">
-    <style>
-        .modal {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000;
-        }
-        .modal-content {
-            background: white; padding: 30px; border-radius: 12px; width: 100%; max-width: 340px;
-            text-align: center; position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-        .modal-content h2 { color: #1a73e8; margin-top: 0; margin-bottom: 20px; font-size: 22px; }
-        .modal-content input {
-            width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc;
-            border-radius: 6px; font-size: 15px; box-sizing: border-box;
-        }
-        .modal-content input:focus { border-color: #34a853; outline: none; }
-        .error-msg { color: #d93025; font-size: 14px; margin-bottom: 10px; display: none; }
-        .close-btn { position: absolute; top: 10px; right: 15px; font-size: 20px; cursor: pointer; color: #999; }
-        .admin-footer { margin-top: 20px; text-align: right; }
-        .loading-banner { text-align: center; color: #666; font-size: 16px; margin: 20px 0; }
-    </style>
-</head>
-<body>
-
-    <!-- НАСТРОЙКА АВТОМАТИЧЕСКОГО СОХРАНЕНИЯ НА GITHUB -->
-    <script>
-        // ВНИМАТЕЛЬНО ВСТАВЬТЕ СВОЙ ЛОГИН GITHUB В КАВЫЧКАХ:
-        const GH_USER = "AGWARD-rgb"; 
-        const GH_REPO = "school-timetable"; 
-        const GH_TOKEN = "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"; 
-    </script>
-
     <!-- ОКНО АВТОРИЗАЦИИ (МОДАЛЬНОЕ) -->
     <div id="login-modal" class="modal">
         <div class="modal-content">
             <span id="close-modal-btn" class="close-btn">&times;</span>
-            <h2>🔐 Вход для учителя</h2>
-            <div id="error-text" class="error-msg">Неверный логин или пароль!</div>
-            <input type="text" id="username-field" placeholder="Логин">
-            <input type="password" id="password-field" placeholder="Пароль">
-            <button id="login-submit-btn" class="btn" style="background-color: #34a853; color: white; width: 100%;">Войти</button>
+            <h2>🔐 Вход для редактора</h2>
+            <div id="error-text" class="error-msg">Неверный токен доступа!</div>
+            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Для редактирования введите ваш GitHub Token вместо пароля</p>
+            <input type="password" id="password-field" placeholder="Приватный токен (ghp_...)">
+            <button id="login-submit-btn" class="btn" style="background-color: #34a853; color: white; width: 100%;">Авторизоваться</button>
         </div>
     </div>
 
@@ -102,7 +64,6 @@
         const loginModal = document.getElementById('login-modal');
         const closeModalBtn = document.getElementById('close-modal-btn');
         const loginSubmitBtn = document.getElementById('login-submit-btn');
-        const usernameField = document.getElementById('username-field');
         const passwordField = document.getElementById('password-field');
         const errorText = document.getElementById('error-text');
         const adminPanel = document.getElementById('admin-panel');
@@ -111,6 +72,7 @@
         const saveBtn = document.getElementById('save-btn');
         const adminFooterBlock = document.getElementById('admin-footer-block');
         const loadingText = document.getElementById('loading-text');
+
         // ЧТЕНИЕ С СЕРВЕРА GITHUB
         function loadScheduleFromGitHub() {
             fetch('data.json?cache_bust=' + Date.now()) 
@@ -132,7 +94,6 @@
                 buildClassSelect();
                 loadingText.classList.add('hidden');
                 classSelect.removeAttribute('disabled');
-                checkAuth();
             })
             .catch(err => {
                 console.log("Создаем чистый шаблон...");
@@ -140,7 +101,6 @@
                 buildClassSelect();
                 loadingText.classList.add('hidden');
                 classSelect.removeAttribute('disabled');
-                checkAuth();
             });
         }
 
@@ -155,135 +115,82 @@
             });
         }
 
-        function renderSchedule(className) {
-            scheduleDisplay.innerHTML = '';
-            if (!className || !schoolData[className]) return;
-            const days = schoolData[className];
-            Object.keys(days).forEach(dayName => {
-                const dayCard = document.createElement('div');
-                dayCard.className = 'day-card';
-                let lessonsHtml = `<h3>${dayName}</h3><ol>`;
-                days[dayName].forEach(lesson => { lessonsHtml += `<li>${lesson}</li>`; });
-                lessonsHtml += '</ol>';
-                dayCard.innerHTML = lessonsHtml;
-                scheduleDisplay.appendChild(dayCard);
-            });
-        }
+        // МОДАЛЬНОЕ ОКНО И АВТОРЗЫЦИЯ
+        openLoginBtn.addEventListener('click', () => {
+            loginModal.style.display = 'flex';
+            errorText.style.display = 'none';
+            passwordField.value = '';
+        });
 
-        function renderEditor(className) {
-            editorContainer.innerHTML = '';
-            if (!className) {
-                adminTitle.textContent = "Выберите класс в списке выше, чтобы начать редактирование";
-                adminFooterBlock.classList.add('hidden');
+        closeModalBtn.addEventListener('click', () => {
+            loginModal.style.display = 'none';
+        });
+
+        loginSubmitBtn.addEventListener('click', () => {
+            const enteredToken = passwordField.value.trim();
+            // Простая валидация префиксов GitHub токенов (классических или fine-grained)
+            if (enteredToken.startsWith("ghp_") || enteredToken.startsWith("github_pat_")) {
+                GH_TOKEN = enteredToken; 
+                loginModal.style.display = "none";
+                openLoginBtn.classList.add('hidden');
+                logoutBtn.classList.remove('hidden');
+                adminPanel.classList.remove('hidden');
+                adminFooterBlock.classList.remove('hidden');
+                alert("Успешный вход! Теперь вы можете редактировать таблицу и нажимать кнопку сохранения.");
+            } else {
+                errorText.style.display = "block";
+            }
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            GH_TOKEN = "";
+            openLoginBtn.classList.remove('hidden');
+            logoutBtn.classList.add('hidden');
+            adminPanel.classList.add('hidden');
+            adminFooterBlock.classList.add('hidden');
+            location.reload();
+        });
+
+        // АВТОМАТИЧЕСКАЯ ОТПРАВКА ДАННЫХ РОБОТУ GITHUB
+        saveBtn.addEventListener('click', () => {
+            if (!GH_TOKEN) {
+                alert("Ошибка безопасности: Токен отсутствует. Пожалуйста, авторизуйтесь заново.");
                 return;
             }
-            adminTitle.textContent = `⚙️ Редактирование расписания: ${className} класс`;
-            adminFooterBlock.classList.remove('hidden');
 
-            const days = schoolData[className];
-            Object.keys(days).forEach(dayName => {
-                const dayBlock = document.createElement('div');
-                dayBlock.className = 'editor-day-block';
-                dayBlock.innerHTML = `<h4>${dayName}</h4>`;
-                days[dayName].forEach((lesson, index) => {
-                    const inputRow = document.createElement('div');
-                    inputRow.className = 'input-row';
-                    inputRow.innerHTML = `
-                        <span>Урок ${index + 1}:</span>
-                        <input type="text" class="lesson-input" data-day="${dayName}" data-index="${index}" value="${lesson}" placeholder="Пусто">
-                    `;
-                    dayBlock.appendChild(inputRow);
-                });
-                editorContainer.appendChild(dayBlock);
-            });
-        }
+            saveBtn.disabled = true;
+            saveBtn.textContent = "⏳ Робот обновляет облако...";
 
-        classSelect.addEventListener('change', (e) => {
-            renderSchedule(e.target.value);
-            if (sessionStorage.getItem('isAdmin') === 'true') { renderEditor(e.target.value); }
-        });
-
-        openLoginBtn.addEventListener('click', () => { loginModal.style.display = 'flex'; });
-        closeModalBtn.addEventListener('click', () => { loginModal.style.display = 'none'; errorText.style.display = 'none'; });
-        
-        loginSubmitBtn.addEventListener('click', () => {
-            if (usernameField.value.trim() === "Teacher" && passwordField.value.trim() === "gimnazium_five555") {
-                sessionStorage.setItem('isAdmin', 'true');
-                loginModal.style.display = 'none';
-                checkAuth();
-            } else {
-                errorText.style.display = 'block'; passwordField.value = '';
-            }
-        });
-
-        logoutBtn.addEventListener('click', () => { sessionStorage.removeItem('isAdmin'); checkAuth(); });
-
-        function checkAuth() {
-            if (sessionStorage.getItem('isAdmin') === 'true') {
-                openLoginBtn.classList.add('hidden'); logoutBtn.classList.remove('hidden');
-                adminPanel.classList.remove('hidden'); renderEditor(classSelect.value);
-            } else {
-                openLoginBtn.classList.remove('hidden'); logoutBtn.classList.add('hidden');
-                adminPanel.classList.add('hidden'); editorContainer.innerHTML = '';
-            }
-        }
-
-        // АВТОМАТИЧЕСКОЕ СОХРАНЕНИЕ ЧЕРЕЗ API GITHUB
-        saveBtn.addEventListener('click', () => {
-            const currentClass = classSelect.value;
-            if (!currentClass) return;
-
-            saveBtn.textContent = "⏳ Минутку, сохраняю в базу...";
-            saveBtn.setAttribute('disabled', 'true');
-
-            const inputs = document.querySelectorAll('.lesson-input');
-            inputs.forEach(input => {
-                const day = input.getAttribute('data-day');
-                const index = parseInt(input.getAttribute('data-index'));
-                schoolData[currentClass][day][index] = input.value.trim();
-            });
-
-            const url = `https://github.com{GH_USER}/${GH_REPO}/contents/data.json`;
-
-            fetch(url, { headers: { 'Authorization': `token ${GH_TOKEN}` } })
-            .then(res => res.json())
-            .then(fileInfo => {
-                const sha = fileInfo.sha;
-                const updatedContent = btoa(unescape(encodeURIComponent(JSON.stringify(schoolData, null, 2))));
-
-                return fetch(url, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `token ${GH_TOKEN}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        message: `Авто-обновление расписания класса ${currentClass}`,
-                        content: updatedContent,
-                        sha: sha
-                    })
-                });
+            fetch(`https://github.com{GH_USER}/${GH_REPO}/dispatches`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `token ${GH_TOKEN}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    event_type: 'update-json',
+                    client_payload: {
+                        schedule_data: JSON.stringify(schoolData, null, 2)
+                    }
+                })
             })
-            .then(res => {
-                if (res.ok) {
-                    alert(`🎉 Расписание успешно обновлено в облаке! Изменения применились для всей школы.`);
+            .then(response => {
+                if (response.ok) {
+                    alert("🎉 Запрос принят! Робот GitHub перепишет файл data.json в течение 15 секунд. Страница обновится автоматически.");
+                    setTimeout(() => location.reload(), 4000);
                 } else {
-                    alert("⚠️ Не удалось сохранить. Проверьте правильность токена и логина в коде.");
+                    throw new Error("GitHub отклонил токен. Проверьте, активен ли он и есть ли у него права на запись (repo / contents:write).");
                 }
-                saveBtn.textContent = "💾 Сохранить изменения в облако";
-                saveBtn.removeAttribute('disabled');
-                renderSchedule(currentClass);
             })
             .catch(err => {
-                console.error(err);
-                alert("Ошибка соединения с сервером GitHub.");
+                alert("❌ Ошибка отправки: " + err.message);
+                saveBtn.disabled = false;
                 saveBtn.textContent = "💾 Сохранить изменения в облако";
-                saveBtn.removeAttribute('disabled');
             });
         });
 
-        passwordField.addEventListener('keypress', (e) => { if (e.key === 'Enter') loginSubmitBtn.click(); });
-
+        // Запуск загрузки данных при старте страницы
         loadScheduleFromGitHub();
     </script>
 </body>
