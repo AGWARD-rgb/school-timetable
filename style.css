@@ -56,13 +56,6 @@ select {
     transition: background 0.2s;
 }
 
-#admin-btn {
-    background-color: #34a853;
-    color: white;
-}
-
-#admin-btn:hover { background-color: #2d8e47; }
-
 .schedule-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -95,11 +88,8 @@ select {
     font-size: 15px;
 }
 
-/* Стили панели администратора */
 .admin-panel {
     margin-top: 40px;
-    padding-top: 20px;
-    border-top: 3px dashed #ccc;
 }
 
 .hidden {
@@ -165,3 +155,4 @@ select {
 .btn-save:hover { background-color: #155cb4; }
 .btn-cancel { background-color: #9e9e9e; color: white; }
 .btn-cancel:hover { background-color: #7e7e7e; }
+
