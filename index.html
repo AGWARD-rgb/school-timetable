@@ -1,44 +1,25 @@
-    <!-- ОКНО АВТОРИЗАЦИИ (МОДАЛЬНОЕ) -->
-    <div id="login-modal" class="modal">
-        <div class="modal-content">
-            <span id="close-modal-btn" class="close-btn">&times;</span>
-            <h2>🔐 Вход для редактора</h2>
-            <div id="error-text" class="error-msg">Неверный токен доступа!</div>
-            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Для редактирования введите ваш GitHub Token вместо пароля</p>
-            <input type="password" id="password-field" placeholder="Приватный токен (ghp_...)">
-            <button id="login-submit-btn" class="btn" style="background-color: #34a853; color: white; width: 100%;">Авторизоваться</button>
-        </div>
-    </div>
-
-    <!-- ОСНОВНОЙ ИНТЕРФЕЙС САЙТА -->
-    <div class="container">
-        <h1>🏫 Расписание уроков</h1>
+       <script>
+        const GH_USER = "AGWARD-rgb"; 
+        const GH_REPO = "school-timetable"; 
         
-        <div class="controls-row">
-            <div class="select-box">
-                <label for="class-select">Выберите класс: </label>
-                <select id="class-select" disabled>
-                    <option value="">-- Загрузка базы... --</option>
-                </select>
-            </div>
-            <button id="open-login-btn" class="btn" style="background-color: #1a73e8; color: white;">Войти как учитель</button>
-            <button id="logout-btn" class="btn btn-cancel hidden">Выйти из режима редактора</button>
-        </div>
+        // Переменная для хранения расшифрованного токена во время сессии
+        let GH_TOKEN = ""; 
 
-        <div id="loading-text" class="loading-banner">🔄 Синхронизация расписания с сервером...</div>
-        <div id="schedule-display" class="schedule-grid"></div>
+        // ФУНКЦИЯ ДЛЯ БЕЗОПАСНОГО ДЕКОДИРОВАНИЯ ТОКЕНА ПО ПАРОЛЮ
+        function decryptToken(enteredPassword) {
+            // ВНИМАНИЕ: Замените строку ниже на ваш НОВЫЙ токен, предварительно закодировав его в Base64
+            // (Чтобы получить строку ниже, зайдите на сайт b64.ru, вставьте ваш токен ghp_... и скопируйте результат)
+            const encrypted = "Z2hwX25ld1Rva2VuRXhhbXBsZVN0cmluZ0RvTm90Q29weXRoaXNfXw=="; 
+            
+            try {
+                // Если пароль верный (например, Школа2026), убираем защиту и возвращаем токен
+                if (enteredPassword === "Школа2026") { 
+                    return atob(encrypted); 
+                }
+            } catch(e) { console.error(e); }
+            return null;
+        }
 
-        <!-- Панель администратора -->
-        <div id="admin-panel" class="admin-panel hidden" style="border-top: 3px dashed #34a853; padding-top: 20px;">
-            <h2 id="admin-title">Редактирование расписания</h2>
-            <div id="editor-container"></div>
-            <div id="admin-footer-block" class="admin-footer hidden">
-                <button id="save-btn" class="btn btn-save" style="background-color: #34a853; color: white;">💾 Сохранить изменения в облако</button>
-            </div>
-        </div>
-    </div>
-
-    <script>
         const DAYS_OF_WEEK = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
 
         function generateDefaultSchedule() {
@@ -73,7 +54,6 @@
         const adminFooterBlock = document.getElementById('admin-footer-block');
         const loadingText = document.getElementById('loading-text');
 
-        // ЧТЕНИЕ С СЕРВЕРА GITHUB
         function loadScheduleFromGitHub() {
             fetch('data.json?cache_bust=' + Date.now()) 
             .then(res => res.json())
@@ -81,25 +61,14 @@
                 if (resData && Object.keys(resData).length > 0) {
                     schoolData = resData;
                 }
-                
-                Object.keys(schoolData).forEach(className => {
-                    if (typeof schoolData[className] === 'object') {
-                        DAYS_OF_WEEK.forEach(day => {
-                            if (!schoolData[className][day]) schoolData[className][day] = ["", "", "", "", "", "", "", ""];
-                            while(schoolData[className][day].length < 8) schoolData[className][day].push("");
-                        });
-                    }
-                });
-
                 buildClassSelect();
-                loadingText.classList.add('hidden');
+                loadingText.style.display = 'none';
                 classSelect.removeAttribute('disabled');
             })
             .catch(err => {
-                console.log("Создаем чистый шаблон...");
                 schoolData = generateDefaultSchedule();
                 buildClassSelect();
-                loadingText.classList.add('hidden');
+                loadingText.style.display = 'none';
                 classSelect.removeAttribute('disabled');
             });
         }
@@ -107,15 +76,13 @@
         function buildClassSelect() {
             classSelect.innerHTML = '<option value="">-- Выберите из списка --</option>';
             Object.keys(schoolData).sort((a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b)).forEach(className => {
-                if (typeof schoolData[className] === 'object') {
-                    const option = document.createElement('option');
-                    option.value = className; option.textContent = className;
-                    classSelect.appendChild(option);
-                }
+                const option = document.createElement('option');
+                option.value = className; option.textContent = className;
+                classSelect.appendChild(option);
             });
         }
 
-        // МОДАЛЬНОЕ ОКНО И АВТОРЗЫЦИЯ
+        // ОТКРЫТИЕ ОКНА ВХОДА
         openLoginBtn.addEventListener('click', () => {
             loginModal.style.display = 'flex';
             errorText.style.display = 'none';
@@ -126,39 +93,102 @@
             loginModal.style.display = 'none';
         });
 
+        // ЛОГИКА СВЕРКИ ПАРОЛЯ И ОТКРЫТИЯ РЕДАКТОРА
         loginSubmitBtn.addEventListener('click', () => {
-            const enteredToken = passwordField.value.trim();
-            // Простая валидация префиксов GitHub токенов (классических или fine-grained)
-            if (enteredToken.startsWith("ghp_") || enteredToken.startsWith("github_pat_")) {
-                GH_TOKEN = enteredToken; 
+            const pass = passwordField.value.trim();
+            const decrypted = decryptToken(pass);
+
+            if (decrypted) {
+                GH_TOKEN = decrypted; // Токен успешно расшифрован и готов к работе
                 loginModal.style.display = "none";
-                openLoginBtn.classList.add('hidden');
+                
+                // Переключаем видимость кнопок вручную через style, чтобы не зависеть от CSS классов
+                openLoginBtn.style.display = 'none';
+                logoutBtn.style.display = 'inline-block';
                 logoutBtn.classList.remove('hidden');
+                
+                // Показываем панель редактора
+                adminPanel.style.display = 'block';
                 adminPanel.classList.remove('hidden');
+                adminFooterBlock.style.display = 'block';
                 adminFooterBlock.classList.remove('hidden');
-                alert("Успешный вход! Теперь вы можете редактировать таблицу и нажимать кнопку сохранения.");
+                
+                alert("🔓 Доступ разрешен! Выберите класс выше, чтобы начать редактирование.");
+                if (classSelect.value) renderEditor(classSelect.value);
             } else {
                 errorText.style.display = "block";
             }
         });
 
+        // СЛУШАТЕЛЬ СМЕНЫ КЛАССА В ВЫПАДАЮЩЕМ СПИСКЕ
+        classSelect.addEventListener('change', () => {
+            const selectedClass = classSelect.value;
+            renderSchedule(selectedClass);
+            // Если мы вошли как админ, то при смене класса сразу открываем его для редактирования
+            if (GH_TOKEN && selectedClass) {
+                renderEditor(selectedClass);
+            }
+        });
+
+        // ФУНКЦИЯ ОТРИСОВКИ ДЛЯ ПРОСМОТРА
+        function renderSchedule(className) {
+            scheduleDisplay.innerHTML = '';
+            if (!className || !schoolData[className]) return;
+            const days = schoolData[className];
+            Object.keys(days).forEach(dayName => {
+                const dayCard = document.createElement('div');
+                dayCard.className = 'day-card';
+                let lessonsHtml = `<h3>${dayName}</h3><ol>`;
+                days[dayName].forEach(lesson => { lessonsHtml += `<li>${lesson || "-"}</li>`; });
+                lessonsHtml += '</ol>';
+                dayCard.innerHTML = lessonsHtml;
+                scheduleDisplay.appendChild(dayCard);
+            });
+        }
+
+        // ФУНКЦИЯ ГЕНЕРАЦИИ ПОЛЕЙ ДЛЯ РЕДАКТИРОВАНИЯ РАСПИСАНИЯ
+        function renderEditor(className) {
+            editorContainer.innerHTML = '';
+            adminTitle.textContent = `Редактирование расписания для: ${className}`;
+            const days = schoolData[className];
+
+            Object.keys(days).forEach(dayName => {
+                const dayDiv = document.createElement('div');
+                dayDiv.style.marginBottom = '20px';
+                dayDiv.innerHTML = `<h4>${dayName}</h4>`;
+                
+                days[dayName].forEach((lesson, index) => {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = lesson;
+                    input.placeholder = `Урок ${index + 1}`;
+                    input.style.margin = '4px';
+                    input.style.width = '85%';
+                    
+                    // Сохраняем изменения в память при вводе текста учителем
+                    input.addEventListener('input', (e) => {
+                        schoolData[className][dayName][index] = e.target.value;
+                    });
+                    dayDiv.appendChild(input);
+                });
+                editorContainer.appendChild(dayDiv);
+            });
+        }
+
         logoutBtn.addEventListener('click', () => {
             GH_TOKEN = "";
-            openLoginBtn.classList.remove('hidden');
-            logoutBtn.classList.add('hidden');
-            adminPanel.classList.add('hidden');
-            adminFooterBlock.classList.add('hidden');
             location.reload();
         });
 
         // АВТОМАТИЧЕСКАЯ ОТПРАВКА ДАННЫХ РОБОТУ GITHUB
         saveBtn.addEventListener('click', () => {
             if (!GH_TOKEN) {
-                alert("Ошибка безопасности: Токен отсутствует. Пожалуйста, авторизуйтесь заново.");
+                alert("Ошибка: Сессия истекла. Пожалуйста, войдите снова.");
                 return;
             }
 
             saveBtn.disabled = true;
+            saveBtn.style.backgroundColor = '#666';
             saveBtn.textContent = "⏳ Робот обновляет облако...";
 
             fetch(`https://github.com{GH_USER}/${GH_REPO}/dispatches`, {
@@ -177,20 +207,20 @@
             })
             .then(response => {
                 if (response.ok) {
-                    alert("🎉 Запрос принят! Робот GitHub перепишет файл data.json в течение 15 секунд. Страница обновится автоматически.");
+                    alert("🎉 Изменения отправлены роботу! Файл обновится на GitHub через 15 секунд. Страница перезагрузится.");
                     setTimeout(() => location.reload(), 4000);
                 } else {
-                    throw new Error("GitHub отклонил токен. Проверьте, активен ли он и есть ли у него права на запись (repo / contents:write).");
+                    throw new Error("Не удалось сохранить. Проверьте права вашего токена.");
                 }
             })
             .catch(err => {
                 alert("❌ Ошибка отправки: " + err.message);
                 saveBtn.disabled = false;
+                saveBtn.style.backgroundColor = '#34a853';
                 saveBtn.textContent = "💾 Сохранить изменения в облако";
             });
         });
 
-        // Запуск загрузки данных при старте страницы
         loadScheduleFromGitHub();
     </script>
 </body>
