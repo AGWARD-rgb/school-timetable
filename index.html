@@ -24,16 +24,11 @@
         .close-btn { position: absolute; top: 10px; right: 15px; font-size: 20px; cursor: pointer; color: #999; }
         .admin-footer { margin-top: 20px; text-align: right; }
         .loading-banner { text-align: center; color: #666; font-size: 16px; margin: 20px 0; }
+        .export-box { margin-top: 20px; background: #fff3cd; padding: 15px; border-radius: 6px; border: 1px solid #ffeeba; text-align: left; }
+        .export-box textarea { width: 100%; height: 100px; margin-top: 10px; font-family: monospace; font-size: 12px; box-sizing: border-box; }
     </style>
 </head>
 <body>
-
-    <!-- НАСТРОЙКА ОБЛАЧНОЙ БАЗЫ ДАННЫХ -->
-    <script>
-        // СЮДА ВСТАВЬТЕ ВАШИ КЛЮЧИ ИЗ JSONBIN.IO КОРРЕКТНО В КАВЫЧКАХ:
-        const BIN_ID = "ВСТАВЬТЕ_СЮДА_ВАШ_BIN_ID";
-        const MASTER_KEY = "ВСТАВЬТЕ_СЮДА_ВАШ_MASTER_KEY";
-    </script>
 
     <!-- ОКНО АВТОРИЗАЦИИ (МОДАЛЬНОЕ) -->
     <div id="login-modal" class="modal">
@@ -62,7 +57,7 @@
             <button id="logout-btn" class="btn btn-cancel hidden">Выйти из режима редактора</button>
         </div>
 
-        <div id="loading-text" class="loading-banner">🔄 Синхронизация с сервером расписания...</div>
+        <div id="loading-text" class="loading-banner">🔄 Загрузка расписания с сервера GitHub...</div>
         <div id="schedule-display" class="schedule-grid"></div>
 
         <!-- Панель администратора -->
@@ -70,7 +65,17 @@
             <h2 id="admin-title">Редактирование расписания</h2>
             <div id="editor-container"></div>
             <div id="admin-footer-block" class="admin-footer hidden">
-                <button id="save-btn" class="btn btn-save">💾 Сохранить изменения для всей школы</button>
+                <button id="save-btn" class="btn btn-save" style="background-color: #34a853; color: white;">Получить код обновлений</button>
+                
+                <div id="export-block" class="export-box hidden">
+                    <strong>Инструкция по сохранению:</strong>
+                    <ol style="margin: 5px 0; padding-left: 20px; font-size: 14px;">
+                        <li>Скопируйте весь текст из поля ниже.</li>
+                        <li>Зайдите на GitHub в ваш файл <b>data.json</b> и нажмите на карандаш.</li>
+                        <li>Сотрите старый текст, вставьте скопированный и нажмите <b>Commit changes</b>.</li>
+                    </ol>
+                    <textarea id="export-textarea" readonly></textarea>
+                </div>
             </div>
         </div>
     </div>
@@ -110,24 +115,25 @@
         const saveBtn = document.getElementById('save-btn');
         const adminFooterBlock = document.getElementById('admin-footer-block');
         const loadingText = document.getElementById('loading-text');
-        // ЗАГРУЗКА ДАННЫХ ИЗ ИНТЕРНЕТ-ОБЛАКА
-        function loadScheduleFromCloud() {
-            fetch(`https://jsonbin.io{BIN_ID}/latest`, {
-                headers: { 'X-Master-Key': MASTER_KEY }
-            })
+        const exportBlock = document.getElementById('export-block');
+        const exportTextarea = document.getElementById('export-textarea');
+
+        // ЧТЕНИЕ ИЗ ВАШЕГО ФАЙЛА ДАННЫХ НА GITHUB
+        function loadScheduleFromGitHub() {
+            fetch('data.json?cache_bust=' + Date.now()) 
             .then(res => res.json())
             .then(resData => {
-                // Если облако пустое (первый запуск), используем шаблон
-                if (resData.record && Object.keys(resData.record).length > 0) {
-                    schoolData = resData.record;
+                if (resData && Object.keys(resData).length > 0) {
+                    schoolData = resData;
                 }
                 
-                // Проверка структуры
                 Object.keys(schoolData).forEach(className => {
-                    DAYS_OF_WEEK.forEach(day => {
-                        if (!schoolData[className][day]) schoolData[className][day] = ["", "", "", "", "", "", "", ""];
-                        while(schoolData[className][day].length < 8) schoolData[className][day].push("");
-                    });
+                    if (typeof schoolData[className] === 'object') {
+                        DAYS_OF_WEEK.forEach(day => {
+                            if (!schoolData[className][day]) schoolData[className][day] = ["", "", "", "", "", "", "", ""];
+                            while(schoolData[className][day].length < 8) schoolData[className][day].push("");
+                        });
+                    }
                 });
 
                 buildClassSelect();
@@ -136,18 +142,22 @@
                 checkAuth();
             })
             .catch(err => {
-                console.error("Ошибка сети:", err);
-                loadingText.textContent = "⚠️ Ошибка подключения к облаку! Проверьте ключи в коде.";
-                buildClassSelect(); // На всякий случай запускаем локально
+                console.log("Файл data.json пуст или еще не обновился, создаем шаблон...");
+                schoolData = generateDefaultSchedule();
+                buildClassSelect();
+                loadingText.classList.add('hidden');
+                classSelect.removeAttribute('disabled');
+                checkAuth();
             });
         }
-
         function buildClassSelect() {
             classSelect.innerHTML = '<option value="">-- Выберите из списка --</option>';
             Object.keys(schoolData).sort((a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b)).forEach(className => {
-                const option = document.createElement('option');
-                option.value = className; option.textContent = className;
-                classSelect.appendChild(option);
+                if (typeof schoolData[className] === 'object') {
+                    const option = document.createElement('option');
+                    option.value = className; option.textContent = className;
+                    classSelect.appendChild(option);
+                }
             });
         }
 
@@ -168,6 +178,7 @@
 
         function renderEditor(className) {
             editorContainer.innerHTML = '';
+            exportBlock.classList.add('hidden');
             if (!className) {
                 adminTitle.textContent = "Выберите класс в списке выше, чтобы начать редактирование";
                 adminFooterBlock.classList.add('hidden');
@@ -224,13 +235,9 @@
             }
         }
 
-        // ОПРАВКА ИЗМЕНЕНИЙ В ОБЛАКО ПО СЕТИ
         saveBtn.addEventListener('click', () => {
             const currentClass = classSelect.value;
             if (!currentClass) return;
-            
-            saveBtn.textContent = "⏳ Сохранение в облако...";
-            saveBtn.setAttribute('disabled', 'true');
 
             const inputs = document.querySelectorAll('.lesson-input');
             inputs.forEach(input => {
@@ -239,33 +246,16 @@
                 schoolData[currentClass][day][index] = input.value.trim();
             });
 
-            // Отправляем весь массив в JSONBin по API
-            fetch(`https://jsonbin.io{BIN_ID}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Master-Key': MASTER_KEY
-                },
-                body: JSON.stringify(schoolData)
-            })
-            .then(res => res.json())
-            .then(data => {
-                alert(`Расписание для класса ${currentClass} сохранено в глобальную базу данных! Изменения увидят все ученики.`);
-                saveBtn.textContent = "💾 Сохранить изменения для всей школы";
-                saveBtn.removeAttribute('disabled');
-                renderSchedule(currentClass);
-            })
-            .catch(err => {
-                alert("Ошибка сохранения в облако! Проверьте интернет-соединение.");
-                saveBtn.textContent = "💾 Сохранить изменения для всей школы";
-                saveBtn.removeAttribute('disabled');
-            });
+            exportTextarea.value = JSON.stringify(schoolData, null, 2);
+            exportBlock.classList.remove('hidden');
+            exportTextarea.select();
+            alert("Код обновлений успешно сгенерирован в текстовом поле внизу! Скопируйте его и сохраните на GitHub.");
+            renderSchedule(currentClass);
         });
 
         passwordField.addEventListener('keypress', (e) => { if (e.key === 'Enter') loginSubmitBtn.click(); });
 
-        // Запуск синхронизации при входе на сайт
-        loadScheduleFromCloud();
+        loadScheduleFromGitHub();
     </script>
 </body>
 </html>
