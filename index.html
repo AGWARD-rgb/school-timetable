@@ -6,7 +6,6 @@
     <title>Электронное расписание школы</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* Стиль для модального окна входа */
         .modal {
             display: none;
             position: fixed;
@@ -42,7 +41,6 @@
 </head>
 <body>
 
-    <!-- ОКНО АВТОРИЗАЦИИ (МОДАЛЬНОЕ) -->
     <div id="login-modal" class="modal">
         <div class="modal-content">
             <span id="close-modal-btn" class="close-btn">&times;</span>
@@ -54,7 +52,6 @@
         </div>
     </div>
 
-    <!-- ОСНОВНОЙ ИНТЕРФЕЙС САЙТА -->
     <div class="container">
         <h1>🏫 Расписание уроков</h1>
         
@@ -65,16 +62,12 @@
                     <option value="">-- Выберите из списка --</option>
                 </select>
             </div>
-            
-            <!-- Кнопки переключения режимов -->
             <button id="open-login-btn" class="btn" style="background-color: #1a73e8; color: white;">Войти как учитель</button>
             <button id="logout-btn" class="btn btn-cancel hidden">Выйти из режима редактора</button>
         </div>
 
-        <!-- Режим просмотра для учеников -->
         <div id="schedule-display" class="schedule-grid"></div>
 
-        <!-- Панель администратора (по умолчанию скрыта, открывается после ввода пароля) -->
         <div id="admin-panel" class="admin-panel hidden" style="border-top: 3px dashed #34a853; padding-top: 20px;">
             <h2 id="admin-title">Редактирование расписания</h2>
             <div id="editor-container"></div>
@@ -103,7 +96,6 @@
 
         let schoolData = JSON.parse(localStorage.getItem('schoolSchedule')) || generateDefaultSchedule();
 
-        // Проверка структуры данных
         Object.keys(schoolData).forEach(className => {
             DAYS_OF_WEEK.forEach(day => {
                 if (!schoolData[className][day]) schoolData[className][day] = ["", "", "", "", "", "", "", ""];
@@ -126,16 +118,14 @@
         const editorContainer = document.getElementById('editor-container');
         const saveBtn = document.getElementById('save-btn');
 
-        let currentClass = "";
-
-        // Заполнение списка классов
+        // Сортировка и заполнение списка
         Object.keys(schoolData).sort((a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b)).forEach(className => {
             const option = document.createElement('option');
-            option.value = className; option.textContent = className;
+            option.value = className; 
+            option.textContent = className;
             classSelect.appendChild(option);
         });
 
-        // Функция отрисовки просмотра (ученики)
         function renderSchedule(className) {
             scheduleDisplay.innerHTML = '';
             if (!className || !schoolData[className]) return;
@@ -154,7 +144,6 @@
             });
         }
 
-        // Функция отрисовки редактора (учитель)
         function renderEditor(className) {
             editorContainer.innerHTML = '';
             if (!className) {
@@ -185,18 +174,15 @@
         }
 
         classSelect.addEventListener('change', (e) => {
-            currentClass = e.target.value;
-            renderSchedule(currentClass);
+            renderSchedule(e.target.value);
             if (sessionStorage.getItem('isAdmin') === 'true') {
-                renderEditor(currentClass);
+                renderEditor(e.target.value);
             }
         });
 
-        // Модальное окно управления
         openLoginBtn.addEventListener('click', () => { loginModal.style.display = 'flex'; });
         closeModalBtn.addEventListener('click', () => { loginModal.style.display = 'none'; errorText.style.display = 'none'; });
         
-        // Кнопка Логина
         loginSubmitBtn.addEventListener('click', () => {
             if (usernameField.value.trim() === "Teacher" && passwordField.value.trim() === "gimnazium_five555") {
                 sessionStorage.setItem('isAdmin', 'true');
@@ -208,13 +194,11 @@
             }
         });
 
-        // Кнопка Выхода
         logoutBtn.addEventListener('click', () => {
             sessionStorage.removeItem('isAdmin');
             checkAuth();
         });
 
-        // Проверка авторизации
         function checkAuth() {
             if (sessionStorage.getItem('isAdmin') === 'true') {
                 openLoginBtn.classList.add('hidden');
@@ -229,3 +213,14 @@
             }
         }
 
+        saveBtn.addEventListener('click', () => {
+            if (!classSelect.value) return;
+            const inputs = document.querySelectorAll('.lesson-input');
+            inputs.forEach(input => {
+                const day = input.getAttribute('data-day');
+                const index = parseInt(input.getAttribute('data-index'));
+                schoolData[classSelect.value][day][index] = input.value.trim();
+            });
+            localStorage.setItem('schoolSchedule', JSON.stringify(schoolData));
+            alert(`Расписание для класса ${classSelect.value} успешно сохранено!`);
+            renderSchedule(classSelect.value);
