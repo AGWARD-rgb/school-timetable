@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Электронное расписание школы</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <h1>🏫 Расписание уроков</h1>
+        
+        <div class="controls-row">
+            <div class="select-box">
+                <label for="class-select">Выберите класс: </label>
+                <select id="class-select">
+                    <option value="">-- Выберите из списка --</option>
+                </select>
+            </div>
+            <span style="color: #666; font-size: 14px;">Режим просмотра</span>
+        </div>
+
+        <!-- Сюда выводится расписание -->
+        <div id="schedule-display" class="schedule-grid"></div>
+    </div>
+
+    <script>
+        // Добавлена Суббота в массив дней недели
+        const DAYS_OF_WEEK = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+
+        function generateDefaultSchedule() {
+            const defaultData = {};
+            for (let grade = 5; grade <= 9; grade++) {
+                ["А", "Б", "В", "Г"].forEach(letter => {
+                    const className = `${grade}${letter}`;
+                    defaultData[className] = {};
+                    DAYS_OF_WEEK.forEach(day => {
+                        defaultData[className][day] = ["", "", "", "", "", "", "", ""];
+                    });
+                });
+            }
+            return defaultData;
+        }
+
+        let schoolData = JSON.parse(localStorage.getItem('schoolSchedule')) || generateDefaultSchedule();
+
+        // Проверка: если в старой сохраненной базе не было Субботы, добавляем её на лету
+        Object.keys(schoolData).forEach(className => {
+            DAYS_OF_WEEK.forEach(day => {
+                if (!schoolData[className][day]) {
+                    schoolData[className][day] = ["", "", "", "", "", "", "", ""];
+                }
+            });
+        });
+
+        const classSelect = document.getElementById('class-select');
+        const scheduleDisplay = document.getElementById('schedule-display');
+
+        Object.keys(schoolData).sort((a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b)).forEach(className => {
+            const option = document.createElement('option');
+            option.value = className;
+            option.textContent = className;
+            classSelect.appendChild(option);
+        });
+
+        classSelect.addEventListener('change', (e) => {
+            const className = e.target.value;
+            scheduleDisplay.innerHTML = '';
+            if (!className || !schoolData[className]) return;
+
+            const days = schoolData[className];
+            Object.keys(days).forEach(dayName => {
+                const dayCard = document.createElement('div');
+                dayCard.className = 'day-card';
+                
+                let lessonsHtml = `<h3>${dayName}</h3><ol>`;
+                days[dayName].forEach(lesson => {
+                    lessonsHtml += `<li>${lesson}</li>`;
+                });
+                lessonsHtml += '</ol>';
+                
+                dayCard.innerHTML = lessonsHtml;
+                scheduleDisplay.appendChild(dayCard);
+            });
+        });
+    </script>
+</body>
+</html>
+
+

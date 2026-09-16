@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панель управления расписанием</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container" style="border: 2px solid #34a853;">
+        <h1>⚙️ Панель администратора</h1>
+        
+        <div class="controls-row">
+            <div class="select-box">
+                <label for="class-select">Выберите класс для изменения: </label>
+                <select id="class-select">
+                    <option value="">-- Выберите из списка --</option>
+                </select>
+            </div>
+            <a href="index.html" class="btn" style="background-color: #1a73e8; color: white; text-decoration: none; text-align:center;">👁️ Посмотреть сайт</a>
+        </div>
+
+        <div id="admin-panel" class="admin-panel">
+            <h2 id="admin-title">Выберите класс выше, чтобы начать редактирование</h2>
+            <div id="editor-container"></div>
+            <div class="admin-actions hidden" id="action-block">
+                <button id="save-btn" class="btn btn-save">💾 Сохранить изменения</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Добавлена Суббота в массив дней недели
+        const DAYS_OF_WEEK = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
+
+        function generateDefaultSchedule() {
+            const defaultData = {};
+            for (let grade = 5; grade <= 9; grade++) {
+                ["А", "Б", "В", "Г"].forEach(letter => {
+                    const className = `${grade}${letter}`;
+                    defaultData[className] = {};
+                    DAYS_OF_WEEK.forEach(day => {
+                        defaultData[className][day] = ["", "", "", "", "", "", "", ""];
+                    });
+                });
+            }
+            return defaultData;
+        }
+
+        let schoolData = JSON.parse(localStorage.getItem('schoolSchedule')) || generateDefaultSchedule();
+
+        // Проверка: расширяем старую базу данных до субботы, если это необходимо
+        Object.keys(schoolData).forEach(className => {
+            DAYS_OF_WEEK.forEach(day => {
+                if (!schoolData[className][day]) {
+                    schoolData[className][day] = ["", "", "", "", "", "", "", ""];
+                }
+            });
+        });
+
+        const classSelect = document.getElementById('class-select');
+        const editorContainer = document.getElementById('editor-container');
+        const saveBtn = document.getElementById('save-btn');
+        const adminTitle = document.getElementById('admin-title');
+        const actionBlock = document.getElementById('action-block');
+
+        let currentEditingClass = "";
+
+        Object.keys(schoolData).sort((a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b)).forEach(className => {
+            const option = document.createElement('option');
+            option.value = className;
+            option.textContent = className;
+            classSelect.appendChild(option);
+        });
+
+        classSelect.addEventListener('change', (e) => {
+            const selectedClass = e.target.value;
+            editorContainer.innerHTML = '';
+            
+            if (!selectedClass) {
+                adminTitle.textContent = "Выберите класс выше, чтобы начать редактирование";
+                actionBlock.className = "admin-actions hidden";
+                return;
+            }
+            
+            currentEditingClass = selectedClass;
+            adminTitle.textContent = `Редактирование расписания: ${currentEditingClass} класс`;
+            actionBlock.className = "admin-actions";
+            
+            const days = schoolData[currentEditingClass];
+            
+            Object.keys(days).forEach(dayName => {
+                while(days[dayName].length < 8) {
+                    days[dayName].push("");
+                }
+
+                const dayBlock = document.createElement('div');
+                dayBlock.className = 'editor-day-block';
+                dayBlock.innerHTML = `<h4>${dayName}</h4>`;
+                
+                days[dayName].forEach((lesson, index) => {
+                    const inputRow = document.createElement('div');
+                    inputRow.className = 'input-row';
+                    inputRow.innerHTML = `
+                        <span>Урок ${index + 1}:</span>
+                        <input type="text" class="lesson-input" data-day="${dayName}" data-index="${index}" value="${lesson}" placeholder="Пусто">
+                    `;
+                    dayBlock.appendChild(inputRow);
+                });
+                
+                editorContainer.appendChild(dayBlock);
+            });
+        });
+
+        saveBtn.addEventListener('click', () => {
+            const inputs = document.querySelectorAll('.lesson-input');
+            
+            inputs.forEach(input => {
+                const day = input.getAttribute('data-day');
+                const index = parseInt(input.getAttribute('data-index'));
+                const val = input.value.trim();
+                schoolData[currentEditingClass][day][index] = val;
+            });
+            
+            localStorage.setItem('schoolSchedule', JSON.stringify(schoolData));
+            alert(`Расписание для класса ${currentEditingClass} успешно сохранено!`);
+        });
+    </script>
+</body>
+</html>
+
