@@ -72,18 +72,17 @@
         const GH_USER = "AGWARD-rgb"; 
         const GH_REPO = "school-timetable"; 
         
-        let GH_TOKEN = ""; 
+        let FINAL_TOKEN_STRING = ""; 
 
         function decryptToken(enteredPassword) {
-            // Вставьте ваши 3 части токена внутрь кавычек:
+            // ВСТАВЬТЕ СЮДА ВАШИ 3 ЧАСТИ ТОКЕНА (УБРАННЫЙ СИМВОЛ ВЕРНИТЕ НА МЕСТО!)
             const part1 = "ghp_KMbyJp0j"; 
             const part2 = "ZFcMYAqqbtP1cg";
             const part3 = "U0LNbZjv1BmO17";
             
             try {
                 if (enteredPassword === "Школа2026") { 
-                    // Простое сложение строк
-                    return part1 + part2 + part3; 
+                    return (part1 + part2 + part3).trim().replace(/[^a-zA-Z0-9_]/g, ''); 
                 }
             } catch(e) { console.error(e); }
             return null;
@@ -195,7 +194,7 @@
             const decrypted = decryptToken(pass);
 
             if (decrypted) {
-                GH_TOKEN = decrypted; 
+                FINAL_TOKEN_STRING = decrypted; 
                 loginModal.style.display = "none";
                 
                 openLoginBtn.classList.add('hidden');
@@ -211,7 +210,7 @@
         });
 
         logoutBtn.addEventListener('click', () => {
-            GH_TOKEN = "";
+            FINAL_TOKEN_STRING = "";
             location.reload();
         });
 
@@ -219,7 +218,7 @@
         classSelect.addEventListener('change', () => {
             const selectedClass = classSelect.value;
             renderSchedule(selectedClass);
-            if (GH_TOKEN && selectedClass) {
+            if (FINAL_TOKEN_STRING && selectedClass) {
                 renderEditor(selectedClass);
             }
         });
@@ -282,23 +281,22 @@
 
         // АВТОМАТИЧЕСКАЯ ОТПРАВКА ИЗМЕНЕНИЙ НА СЕРВЕР ЧЕРЕЗ РОБОТА GITHUB
         saveBtn.addEventListener('click', () => {
-            if (!GH_TOKEN) {
+            if (!FINAL_TOKEN_STRING) {
                 alert("Ошибка авторизации. Перезагрузите страницу.");
                 return;
             }
-
-            // ПРИНУДИТЕЛЬНАЯ ОЧИСТКА ТОКЕНА ОТ СКРЫТЫХ СИМВОЛОВ ПЕРЕД ОТПРАВКОЙ В HTTP-ЗАГОЛОВОК
-            const cleanToken = GH_TOKEN.trim().replace(/[^a-zA-Z0-9_]/g, '');
 
             saveBtn.disabled = true;
             saveBtn.classList.add('btn-cancel'); 
             saveBtn.textContent = "⏳ Робот обновляет облако...";
 
-            // Использование прямого официального адреса API GitHub
-            fetch("https://github.com", {
+            // Полностью прямая и очищенная ссылка API, защищенная от CORS-подмены
+            const targetUrl = "https://github.com";
+
+            fetch(targetUrl, {
                 method: 'POST',
                 headers: {
-                    'Authorization': 'token ' + cleanToken,
+                    'Authorization': 'token ' + FINAL_TOKEN_STRING,
                     'Accept': 'application/vnd.github.v3+json',
                     'Content-Type': 'application/json'
                 },
@@ -311,10 +309,10 @@
             })
             .then(response => {
                 if (response.ok) {
-                    alert("🎉 Успешно! Робот GitHub получил измененную базу и перепишет файл data.json в течение 15 секунд.");
+                    alert("🎉 Полный успех! Робот GitHub принял измененную базу и перепишет файл data.json в течение 15 секунд.");
                     setTimeout(() => location.reload(), 3000);
                 } else {
-                    throw new Error("GitHub отклонил операцию. Проверьте ваш токен. Код ошибки: " + response.status);
+                    throw new Error("GitHub отклонил токен. Проверьте права и символы. Код: " + response.status);
                 }
             })
             .catch(err => {
