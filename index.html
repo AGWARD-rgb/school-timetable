@@ -6,6 +6,7 @@
     <title>Электронное расписание школы</title>
     <link rel="stylesheet" href="style.css">
     <style>
+        /* Стиль для модального окна входа */
         .modal {
             display: none;
             position: fixed;
@@ -37,10 +38,15 @@
             position: absolute; top: 10px; right: 15px;
             font-size: 20px; cursor: pointer; color: #999;
         }
+        .admin-footer {
+            margin-top: 20px;
+            text-align: right;
+        }
     </style>
 </head>
 <body>
 
+    <!-- ОКНО АВТОРИЗАЦИИ (МОДАЛЬНОЕ) -->
     <div id="login-modal" class="modal">
         <div class="modal-content">
             <span id="close-modal-btn" class="close-btn">&times;</span>
@@ -52,6 +58,7 @@
         </div>
     </div>
 
+    <!-- ОСНОВНОЙ ИНТЕРФЕЙС САЙТА -->
     <div class="container">
         <h1>🏫 Расписание уроков</h1>
         
@@ -62,16 +69,20 @@
                     <option value="">-- Выберите из списка --</option>
                 </select>
             </div>
+            
+            <!-- Кнопки переключения режимов -->
             <button id="open-login-btn" class="btn" style="background-color: #1a73e8; color: white;">Войти как учитель</button>
             <button id="logout-btn" class="btn btn-cancel hidden">Выйти из режима редактора</button>
         </div>
 
+        <!-- Режим просмотра для учеников -->
         <div id="schedule-display" class="schedule-grid"></div>
 
+        <!-- Панель администратора -->
         <div id="admin-panel" class="admin-panel hidden" style="border-top: 3px dashed #34a853; padding-top: 20px;">
             <h2 id="admin-title">Редактирование расписания</h2>
             <div id="editor-container"></div>
-            <div class="admin-actions">
+            <div id="admin-footer-block" class="admin-footer hidden">
                 <button id="save-btn" class="btn btn-save">💾 Сохранить изменения</button>
             </div>
         </div>
@@ -117,15 +128,15 @@
         const adminTitle = document.getElementById('admin-title');
         const editorContainer = document.getElementById('editor-container');
         const saveBtn = document.getElementById('save-btn');
+        const adminFooterBlock = document.getElementById('admin-footer-block');
 
-        // Сортировка и заполнение списка
+        // Заполнение списка классов
         Object.keys(schoolData).sort((a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b)).forEach(className => {
             const option = document.createElement('option');
             option.value = className; 
             option.textContent = className;
             classSelect.appendChild(option);
         });
-
         function renderSchedule(className) {
             scheduleDisplay.innerHTML = '';
             if (!className || !schoolData[className]) return;
@@ -148,11 +159,11 @@
             editorContainer.innerHTML = '';
             if (!className) {
                 adminTitle.textContent = "Выберите класс в списке выше, чтобы начать редактирование";
-                document.querySelector('.admin-actions').classList.add('hidden');
+                adminFooterBlock.classList.add('hidden');
                 return;
             }
             adminTitle.textContent = `⚙️ Редактирование расписания: ${className} класс`;
-            document.querySelector('.admin-actions').classList.remove('hidden');
+            adminFooterBlock.classList.remove('hidden');
 
             const days = schoolData[className];
             Object.keys(days).forEach(dayName => {
@@ -174,9 +185,10 @@
         }
 
         classSelect.addEventListener('change', (e) => {
-            renderSchedule(e.target.value);
+            const val = e.target.value;
+            renderSchedule(val);
             if (sessionStorage.getItem('isAdmin') === 'true') {
-                renderEditor(e.target.value);
+                renderEditor(val);
             }
         });
 
@@ -187,6 +199,9 @@
             if (usernameField.value.trim() === "Teacher" && passwordField.value.trim() === "gimnazium_five555") {
                 sessionStorage.setItem('isAdmin', 'true');
                 loginModal.style.display = 'none';
+                errorText.style.display = 'none';
+                usernameField.value = '';
+                passwordField.value = '';
                 checkAuth();
             } else {
                 errorText.style.display = 'block';
@@ -214,13 +229,24 @@
         }
 
         saveBtn.addEventListener('click', () => {
-            if (!classSelect.value) return;
+            const currentClass = classSelect.value;
+            if (!currentClass) return;
+            
             const inputs = document.querySelectorAll('.lesson-input');
             inputs.forEach(input => {
                 const day = input.getAttribute('data-day');
                 const index = parseInt(input.getAttribute('data-index'));
-                schoolData[classSelect.value][day][index] = input.value.trim();
+                schoolData[currentClass][day][index] = input.value.trim();
             });
+            
             localStorage.setItem('schoolSchedule', JSON.stringify(schoolData));
-            alert(`Расписание для класса ${classSelect.value} успешно сохранено!`);
-            renderSchedule(classSelect.value);
+            alert(`Расписание для класса ${currentClass} успешно сохранено!`);
+            renderSchedule(currentClass);
+        });
+
+        passwordField.addEventListener('keypress', (e) => { if (e.key === 'Enter') loginSubmitBtn.click(); });
+
+        checkAuth();
+    </script>
+</body>
+</html>
