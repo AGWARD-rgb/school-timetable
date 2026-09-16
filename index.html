@@ -6,45 +6,34 @@
     <title>Электронное расписание школы</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        /* Стиль для модального окна входа */
         .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5);
-            justify-content: center;
-            align-items: center;
-            z-index: 1000;
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000;
         }
         .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            width: 100%;
-            max-width: 340px;
-            text-align: center;
-            position: relative;
+            background: white; padding: 30px; border-radius: 12px; width: 100%; max-width: 340px;
+            text-align: center; position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
         .modal-content h2 { color: #1a73e8; margin-top: 0; margin-bottom: 20px; font-size: 22px; }
         .modal-content input {
-            width: 100%; padding: 10px; margin-bottom: 15px;
-            border: 1px solid #ccc; border-radius: 6px;
-            font-size: 15px; box-sizing: border-box;
+            width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc;
+            border-radius: 6px; font-size: 15px; box-sizing: border-box;
         }
         .modal-content input:focus { border-color: #34a853; outline: none; }
         .error-msg { color: #d93025; font-size: 14px; margin-bottom: 10px; display: none; }
-        .close-btn {
-            position: absolute; top: 10px; right: 15px;
-            font-size: 20px; cursor: pointer; color: #999;
-        }
-        .admin-footer {
-            margin-top: 20px;
-            text-align: right;
-        }
+        .close-btn { position: absolute; top: 10px; right: 15px; font-size: 20px; cursor: pointer; color: #999; }
+        .admin-footer { margin-top: 20px; text-align: right; }
+        .loading-banner { text-align: center; color: #666; font-size: 16px; margin: 20px 0; }
     </style>
 </head>
 <body>
+
+    <!-- НАСТРОЙКА ОБЛАЧНОЙ БАЗЫ ДАННЫХ -->
+    <script>
+        // СЮДА ВСТАВЬТЕ ВАШИ КЛЮЧИ ИЗ JSONBIN.IO КОРРЕКТНО В КАВЫЧКАХ:
+        const BIN_ID = "ВСТАВЬТЕ_СЮДА_ВАШ_BIN_ID";
+        const MASTER_KEY = "ВСТАВЬТЕ_СЮДА_ВАШ_MASTER_KEY";
+    </script>
 
     <!-- ОКНО АВТОРИЗАЦИИ (МОДАЛЬНОЕ) -->
     <div id="login-modal" class="modal">
@@ -65,17 +54,15 @@
         <div class="controls-row">
             <div class="select-box">
                 <label for="class-select">Выберите класс: </label>
-                <select id="class-select">
-                    <option value="">-- Выберите из списка --</option>
+                <select id="class-select" disabled>
+                    <option value="">-- Загрузка базы... --</option>
                 </select>
             </div>
-            
-            <!-- Кнопки переключения режимов -->
             <button id="open-login-btn" class="btn" style="background-color: #1a73e8; color: white;">Войти как учитель</button>
             <button id="logout-btn" class="btn btn-cancel hidden">Выйти из режима редактора</button>
         </div>
 
-        <!-- Режим просмотра для учеников -->
+        <div id="loading-text" class="loading-banner">🔄 Синхронизация с сервером расписания...</div>
         <div id="schedule-display" class="schedule-grid"></div>
 
         <!-- Панель администратора -->
@@ -83,7 +70,7 @@
             <h2 id="admin-title">Редактирование расписания</h2>
             <div id="editor-container"></div>
             <div id="admin-footer-block" class="admin-footer hidden">
-                <button id="save-btn" class="btn btn-save">💾 Сохранить изменения</button>
+                <button id="save-btn" class="btn btn-save">💾 Сохранить изменения для всей школы</button>
             </div>
         </div>
     </div>
@@ -105,14 +92,7 @@
             return defaultData;
         }
 
-        let schoolData = JSON.parse(localStorage.getItem('schoolSchedule')) || generateDefaultSchedule();
-
-        Object.keys(schoolData).forEach(className => {
-            DAYS_OF_WEEK.forEach(day => {
-                if (!schoolData[className][day]) schoolData[className][day] = ["", "", "", "", "", "", "", ""];
-                while(schoolData[className][day].length < 8) schoolData[className][day].push("");
-            });
-        });
+        let schoolData = generateDefaultSchedule();
 
         const classSelect = document.getElementById('class-select');
         const scheduleDisplay = document.getElementById('schedule-display');
@@ -129,26 +109,57 @@
         const editorContainer = document.getElementById('editor-container');
         const saveBtn = document.getElementById('save-btn');
         const adminFooterBlock = document.getElementById('admin-footer-block');
+        const loadingText = document.getElementById('loading-text');
+        // ЗАГРУЗКА ДАННЫХ ИЗ ИНТЕРНЕТ-ОБЛАКА
+        function loadScheduleFromCloud() {
+            fetch(`https://jsonbin.io{BIN_ID}/latest`, {
+                headers: { 'X-Master-Key': MASTER_KEY }
+            })
+            .then(res => res.json())
+            .then(resData => {
+                // Если облако пустое (первый запуск), используем шаблон
+                if (resData.record && Object.keys(resData.record).length > 0) {
+                    schoolData = resData.record;
+                }
+                
+                // Проверка структуры
+                Object.keys(schoolData).forEach(className => {
+                    DAYS_OF_WEEK.forEach(day => {
+                        if (!schoolData[className][day]) schoolData[className][day] = ["", "", "", "", "", "", "", ""];
+                        while(schoolData[className][day].length < 8) schoolData[className][day].push("");
+                    });
+                });
 
-        // Заполнение списка классов
-        Object.keys(schoolData).sort((a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b)).forEach(className => {
-            const option = document.createElement('option');
-            option.value = className; 
-            option.textContent = className;
-            classSelect.appendChild(option);
-        });
+                buildClassSelect();
+                loadingText.classList.add('hidden');
+                classSelect.removeAttribute('disabled');
+                checkAuth();
+            })
+            .catch(err => {
+                console.error("Ошибка сети:", err);
+                loadingText.textContent = "⚠️ Ошибка подключения к облаку! Проверьте ключи в коде.";
+                buildClassSelect(); // На всякий случай запускаем локально
+            });
+        }
+
+        function buildClassSelect() {
+            classSelect.innerHTML = '<option value="">-- Выберите из списка --</option>';
+            Object.keys(schoolData).sort((a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b)).forEach(className => {
+                const option = document.createElement('option');
+                option.value = className; option.textContent = className;
+                classSelect.appendChild(option);
+            });
+        }
+
         function renderSchedule(className) {
             scheduleDisplay.innerHTML = '';
             if (!className || !schoolData[className]) return;
-
             const days = schoolData[className];
             Object.keys(days).forEach(dayName => {
                 const dayCard = document.createElement('div');
                 dayCard.className = 'day-card';
                 let lessonsHtml = `<h3>${dayName}</h3><ol>`;
-                days[dayName].forEach(lesson => {
-                    lessonsHtml += `<li>${lesson}</li>`;
-                });
+                days[dayName].forEach(lesson => { lessonsHtml += `<li>${lesson}</li>`; });
                 lessonsHtml += '</ol>';
                 dayCard.innerHTML = lessonsHtml;
                 scheduleDisplay.appendChild(dayCard);
@@ -170,7 +181,6 @@
                 const dayBlock = document.createElement('div');
                 dayBlock.className = 'editor-day-block';
                 dayBlock.innerHTML = `<h4>${dayName}</h4>`;
-                
                 days[dayName].forEach((lesson, index) => {
                     const inputRow = document.createElement('div');
                     inputRow.className = 'input-row';
@@ -185,11 +195,8 @@
         }
 
         classSelect.addEventListener('change', (e) => {
-            const val = e.target.value;
-            renderSchedule(val);
-            if (sessionStorage.getItem('isAdmin') === 'true') {
-                renderEditor(val);
-            }
+            renderSchedule(e.target.value);
+            if (sessionStorage.getItem('isAdmin') === 'true') { renderEditor(e.target.value); }
         });
 
         openLoginBtn.addEventListener('click', () => { loginModal.style.display = 'flex'; });
@@ -199,54 +206,66 @@
             if (usernameField.value.trim() === "Teacher" && passwordField.value.trim() === "gimnazium_five555") {
                 sessionStorage.setItem('isAdmin', 'true');
                 loginModal.style.display = 'none';
-                errorText.style.display = 'none';
-                usernameField.value = '';
-                passwordField.value = '';
                 checkAuth();
             } else {
-                errorText.style.display = 'block';
-                passwordField.value = '';
+                errorText.style.display = 'block'; passwordField.value = '';
             }
         });
 
-        logoutBtn.addEventListener('click', () => {
-            sessionStorage.removeItem('isAdmin');
-            checkAuth();
-        });
+        logoutBtn.addEventListener('click', () => { sessionStorage.removeItem('isAdmin'); checkAuth(); });
 
         function checkAuth() {
             if (sessionStorage.getItem('isAdmin') === 'true') {
-                openLoginBtn.classList.add('hidden');
-                logoutBtn.classList.remove('hidden');
-                adminPanel.classList.remove('hidden');
-                renderEditor(classSelect.value);
+                openLoginBtn.classList.add('hidden'); logoutBtn.classList.remove('hidden');
+                adminPanel.classList.remove('hidden'); renderEditor(classSelect.value);
             } else {
-                openLoginBtn.classList.remove('hidden');
-                logoutBtn.classList.add('hidden');
-                adminPanel.classList.add('hidden');
-                editorContainer.innerHTML = '';
+                openLoginBtn.classList.remove('hidden'); logoutBtn.classList.add('hidden');
+                adminPanel.classList.add('hidden'); editorContainer.innerHTML = '';
             }
         }
 
+        // ОПРАВКА ИЗМЕНЕНИЙ В ОБЛАКО ПО СЕТИ
         saveBtn.addEventListener('click', () => {
             const currentClass = classSelect.value;
             if (!currentClass) return;
             
+            saveBtn.textContent = "⏳ Сохранение в облако...";
+            saveBtn.setAttribute('disabled', 'true');
+
             const inputs = document.querySelectorAll('.lesson-input');
             inputs.forEach(input => {
                 const day = input.getAttribute('data-day');
                 const index = parseInt(input.getAttribute('data-index'));
                 schoolData[currentClass][day][index] = input.value.trim();
             });
-            
-            localStorage.setItem('schoolSchedule', JSON.stringify(schoolData));
-            alert(`Расписание для класса ${currentClass} успешно сохранено!`);
-            renderSchedule(currentClass);
+
+            // Отправляем весь массив в JSONBin по API
+            fetch(`https://jsonbin.io{BIN_ID}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Master-Key': MASTER_KEY
+                },
+                body: JSON.stringify(schoolData)
+            })
+            .then(res => res.json())
+            .then(data => {
+                alert(`Расписание для класса ${currentClass} сохранено в глобальную базу данных! Изменения увидят все ученики.`);
+                saveBtn.textContent = "💾 Сохранить изменения для всей школы";
+                saveBtn.removeAttribute('disabled');
+                renderSchedule(currentClass);
+            })
+            .catch(err => {
+                alert("Ошибка сохранения в облако! Проверьте интернет-соединение.");
+                saveBtn.textContent = "💾 Сохранить изменения для всей школы";
+                saveBtn.removeAttribute('disabled');
+            });
         });
 
         passwordField.addEventListener('keypress', (e) => { if (e.key === 'Enter') loginSubmitBtn.click(); });
 
-        checkAuth();
+        // Запуск синхронизации при входе на сайт
+        loadScheduleFromCloud();
     </script>
 </body>
 </html>
