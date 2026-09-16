@@ -75,10 +75,10 @@
         let GH_TOKEN = ""; 
 
         function decryptToken(enteredPassword) {
-            // ИЗМЕНИТЕ ЭТИ ТРИ СТРОКИ: Разбейте ваш новый токен ghp_... на 3 части и вставьте их сюда
-            const part1 = "ghp_KMbyJp0j"; 
-            const part2 = "ZFcMYAqQbtP1cg";
-            const part3 = "U0LNbZjv1BmOl7";
+            // Разбейте ваш новый токен на 3 части и вставьте их в кавычки ниже
+            const part1 = "ghp_ЗАМЕНИ_МЕНЯ_НА_ЧАСТЬ1"; 
+            const part2 = "ЗАМЕНИ_МЕНЯ_НА_ЧАСТЬ2";
+            const part3 = "ЗАМЕНИ_МЕНЯ_НА_ЧАСТЬ3";
             
             try {
                 if (enteredPassword === "Школа2026") { 
@@ -290,10 +290,11 @@
             saveBtn.classList.add('btn-cancel'); 
             saveBtn.textContent = "⏳ Робот обновляет облако...";
 
-            fetch(`https://github.com{GH_USER}/${GH_REPO}/dispatches`, {
+            // Использование прямого и проверенного адреса API
+            fetch("https://github.com", {
                 method: 'POST',
                 headers: {
-                    'Authorization': `token ${GH_TOKEN}`,
+                    'Authorization': 'token ' + GH_TOKEN,
                     'Accept': 'application/vnd.github.v3+json',
                     'Content-Type': 'application/json'
                 },
@@ -309,7 +310,7 @@
                     alert("🎉 Успешно! Робот GitHub получил измененную базу и перепишет файл data.json в течение 15 секунд.");
                     setTimeout(() => location.reload(), 3000);
                 } else {
-                    throw new Error("GitHub отклонил операцию. Проверьте актуальность токена доступа.");
+                    throw new Error("GitHub отклонил операцию. Проверьте ваш токен. Код ошибки: " + response.status);
                 }
             })
             .catch(err => {
