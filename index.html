@@ -24,11 +24,17 @@
         .close-btn { position: absolute; top: 10px; right: 15px; font-size: 20px; cursor: pointer; color: #999; }
         .admin-footer { margin-top: 20px; text-align: right; }
         .loading-banner { text-align: center; color: #666; font-size: 16px; margin: 20px 0; }
-        .export-box { margin-top: 20px; background: #fff3cd; padding: 15px; border-radius: 6px; border: 1px solid #ffeeba; text-align: left; }
-        .export-box textarea { width: 100%; height: 100px; margin-top: 10px; font-family: monospace; font-size: 12px; box-sizing: border-box; }
     </style>
 </head>
 <body>
+
+    <!-- НАСТРОЙКА АВТОМАТИЧЕСКОГО СОХРАНЕНИЯ НА GITHUB -->
+    <script>
+        // ВНИМАТЕЛЬНО ВСТАВЬТЕ СВОЙ ЛОГИН GITHUB В КАВЫЧКАХ:
+        const GH_USER = "AGWARD-rgb"; 
+        const GH_REPO = "school-timetable"; 
+        const GH_TOKEN = "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"; 
+    </script>
 
     <!-- ОКНО АВТОРИЗАЦИИ (МОДАЛЬНОЕ) -->
     <div id="login-modal" class="modal">
@@ -57,7 +63,7 @@
             <button id="logout-btn" class="btn btn-cancel hidden">Выйти из режима редактора</button>
         </div>
 
-        <div id="loading-text" class="loading-banner">🔄 Загрузка расписания с сервера GitHub...</div>
+        <div id="loading-text" class="loading-banner">🔄 Синхронизация расписания с сервером...</div>
         <div id="schedule-display" class="schedule-grid"></div>
 
         <!-- Панель администратора -->
@@ -65,17 +71,7 @@
             <h2 id="admin-title">Редактирование расписания</h2>
             <div id="editor-container"></div>
             <div id="admin-footer-block" class="admin-footer hidden">
-                <button id="save-btn" class="btn btn-save" style="background-color: #34a853; color: white;">Получить код обновлений</button>
-                
-                <div id="export-block" class="export-box hidden">
-                    <strong>Инструкция по сохранению:</strong>
-                    <ol style="margin: 5px 0; padding-left: 20px; font-size: 14px;">
-                        <li>Скопируйте весь текст из поля ниже.</li>
-                        <li>Зайдите на GitHub в ваш файл <b>data.json</b> и нажмите на карандаш.</li>
-                        <li>Сотрите старый текст, вставьте скопированный и нажмите <b>Commit changes</b>.</li>
-                    </ol>
-                    <textarea id="export-textarea" readonly></textarea>
-                </div>
+                <button id="save-btn" class="btn btn-save" style="background-color: #34a853; color: white;">💾 Сохранить изменения в облако</button>
             </div>
         </div>
     </div>
@@ -115,10 +111,7 @@
         const saveBtn = document.getElementById('save-btn');
         const adminFooterBlock = document.getElementById('admin-footer-block');
         const loadingText = document.getElementById('loading-text');
-        const exportBlock = document.getElementById('export-block');
-        const exportTextarea = document.getElementById('export-textarea');
-
-        // ЧТЕНИЕ ИЗ ВАШЕГО ФАЙЛА ДАННЫХ НА GITHUB
+        // ЧТЕНИЕ С СЕРВЕРА GITHUB
         function loadScheduleFromGitHub() {
             fetch('data.json?cache_bust=' + Date.now()) 
             .then(res => res.json())
@@ -142,7 +135,7 @@
                 checkAuth();
             })
             .catch(err => {
-                console.log("Файл data.json пуст или еще не обновился, создаем шаблон...");
+                console.log("Создаем чистый шаблон...");
                 schoolData = generateDefaultSchedule();
                 buildClassSelect();
                 loadingText.classList.add('hidden');
@@ -150,6 +143,7 @@
                 checkAuth();
             });
         }
+
         function buildClassSelect() {
             classSelect.innerHTML = '<option value="">-- Выберите из списка --</option>';
             Object.keys(schoolData).sort((a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b)).forEach(className => {
@@ -178,7 +172,6 @@
 
         function renderEditor(className) {
             editorContainer.innerHTML = '';
-            exportBlock.classList.add('hidden');
             if (!className) {
                 adminTitle.textContent = "Выберите класс в списке выше, чтобы начать редактирование";
                 adminFooterBlock.classList.add('hidden');
@@ -235,9 +228,13 @@
             }
         }
 
+        // АВТОМАТИЧЕСКОЕ СОХРАНЕНИЕ ЧЕРЕЗ API GITHUB
         saveBtn.addEventListener('click', () => {
             const currentClass = classSelect.value;
             if (!currentClass) return;
+
+            saveBtn.textContent = "⏳ Минутку, сохраняю в базу...";
+            saveBtn.setAttribute('disabled', 'true');
 
             const inputs = document.querySelectorAll('.lesson-input');
             inputs.forEach(input => {
@@ -246,11 +243,43 @@
                 schoolData[currentClass][day][index] = input.value.trim();
             });
 
-            exportTextarea.value = JSON.stringify(schoolData, null, 2);
-            exportBlock.classList.remove('hidden');
-            exportTextarea.select();
-            alert("Код обновлений успешно сгенерирован в текстовом поле внизу! Скопируйте его и сохраните на GitHub.");
-            renderSchedule(currentClass);
+            const url = `https://github.com{GH_USER}/${GH_REPO}/contents/data.json`;
+
+            fetch(url, { headers: { 'Authorization': `token ${GH_TOKEN}` } })
+            .then(res => res.json())
+            .then(fileInfo => {
+                const sha = fileInfo.sha;
+                const updatedContent = btoa(unescape(encodeURIComponent(JSON.stringify(schoolData, null, 2))));
+
+                return fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `token ${GH_TOKEN}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: `Авто-обновление расписания класса ${currentClass}`,
+                        content: updatedContent,
+                        sha: sha
+                    })
+                });
+            })
+            .then(res => {
+                if (res.ok) {
+                    alert(`🎉 Расписание успешно обновлено в облаке! Изменения применились для всей школы.`);
+                } else {
+                    alert("⚠️ Не удалось сохранить. Проверьте правильность токена и логина в коде.");
+                }
+                saveBtn.textContent = "💾 Сохранить изменения в облако";
+                saveBtn.removeAttribute('disabled');
+                renderSchedule(currentClass);
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Ошибка соединения с сервером GitHub.");
+                saveBtn.textContent = "💾 Сохранить изменения в облако";
+                saveBtn.removeAttribute('disabled');
+            });
         });
 
         passwordField.addEventListener('keypress', (e) => { if (e.key === 'Enter') loginSubmitBtn.click(); });
