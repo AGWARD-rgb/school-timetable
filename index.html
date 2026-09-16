@@ -75,16 +75,15 @@
         let GH_TOKEN = ""; 
 
         function decryptToken(enteredPassword) {
-            // Вставьте ваши 3 оригинальные части токена внутрь кавычек:
+            // Вставьте ваши 3 части токена внутрь кавычек:
             const part1 = "ghp_KMbyJp0j"; 
             const part2 = "ZFcMYAqqbtP1cg";
             const part3 = "U0LNbZjv1BmO17";
             
             try {
                 if (enteredPassword === "Школа2026") { 
-                    // Фильтр автоматически удалит любые невидимые пробелы, мусор или скрытые знаки форматирования
-                    return part1 + part2 + part3;
-
+                    // Простое сложение строк
+                    return part1 + part2 + part3; 
                 }
             } catch(e) { console.error(e); }
             return null;
@@ -288,15 +287,18 @@
                 return;
             }
 
+            // ПРИНУДИТЕЛЬНАЯ ОЧИСТКА ТОКЕНА ОТ СКРЫТЫХ СИМВОЛОВ ПЕРЕД ОТПРАВКОЙ В HTTP-ЗАГОЛОВОК
+            const cleanToken = GH_TOKEN.trim().replace(/[^a-zA-Z0-9_]/g, '');
+
             saveBtn.disabled = true;
             saveBtn.classList.add('btn-cancel'); 
             saveBtn.textContent = "⏳ Робот обновляет облако...";
 
-            // Использование прямого адреса API
+            // Использование прямого официального адреса API GitHub
             fetch("https://github.com", {
                 method: 'POST',
                 headers: {
-                    'Authorization': 'token ' + GH_TOKEN,
+                    'Authorization': 'token ' + cleanToken,
                     'Accept': 'application/vnd.github.v3+json',
                     'Content-Type': 'application/json'
                 },
@@ -312,7 +314,7 @@
                     alert("🎉 Успешно! Робот GitHub получил измененную базу и перепишет файл data.json в течение 15 секунд.");
                     setTimeout(() => location.reload(), 3000);
                 } else {
-                    throw new Error("GitHub отклонил операцию. Код ошибки: " + response.status);
+                    throw new Error("GitHub отклонил операцию. Проверьте ваш токен. Код ошибки: " + response.status);
                 }
             })
             .catch(err => {
