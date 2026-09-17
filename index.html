@@ -6,39 +6,11 @@
     <title>Электронное расписание школы</title>
     <link rel="stylesheet" href="style.css">
     <style>
-        .modal {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000;
-        }
-        .modal-content {
-            background: white; padding: 30px; border-radius: 12px; width: 100%; max-width: 340px;
-            text-align: center; position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-        }
-        .modal-content h2 { color: #1a73e8; margin-top: 0; margin-bottom: 20px; font-size: 22px; }
-        .modal-content input {
-            width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc;
-            border-radius: 6px; font-size: 15px; box-sizing: border-box;
-        }
-        .modal-content input:focus { border-color: #34a853; outline: none; }
-        .error-msg { color: #d93025; font-size: 14px; margin-bottom: 10px; display: none; }
-        .close-btn { position: absolute; top: 10px; right: 15px; font-size: 20px; cursor: pointer; color: #999; }
-        .admin-footer { margin-top: 20px; text-align: right; }
         .loading-banner { text-align: center; color: #666; font-size: 16px; margin: 20px 0; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
-
-    <!-- ОКНО АВТОРИЗАЦИИ (МОДАЛЬНОЕ) -->
-    <div id="login-modal" class="modal">
-        <div class="modal-content">
-            <span id="close-modal-btn" class="close-btn">&times;</span>
-            <h2>🔐 Вход для редактора</h2>
-            <div id="error-text" class="error-msg">Неверный пароль доступа!</div>
-            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Введите пароль редактора для изменения расписания</p>
-            <input type="password" id="password-field" placeholder="Пароль доступа">
-            <button id="login-submit-btn" class="btn" style="background-color: #34a853; color: white; width: 100%;">Авторизоваться</button>
-        </div>
-    </div>
 
     <!-- ОСНОВНОЙ ИНТЕРФЕЙС САЙТА -->
     <div class="container">
@@ -51,104 +23,130 @@
                     <option value="">-- Загрузка базы... --</option>
                 </select>
             </div>
-            <button id="open-login-btn" class="btn" style="background-color: #1a73e8; color: white;">Войти как учитель</button>
-            <button id="logout-btn" class="btn btn-cancel hidden">Выйти из режима редактора</button>
+            <!-- Ссылка-кнопка для быстрого перехода учителей к редактированию Google Таблицы -->
+            <a href="https://docs.google.com/spreadsheets/d/1pFC4voBk4ihxJgJahaMM92iWY8TPrKea57A97yAYhYQ/edit" target="_blank" class="btn" style="background-color: #34a853; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: 600;">✏️ Открыть Google Таблицу (для учителей)</a>
         </div>
 
-        <div id="loading-text" class="loading-banner">🔄 Синхронизация расписания...</div>
+        <div id="loading-text" class="loading-banner">🔄 Синхронизация расписания с Google Таблицей...</div>
         <div id="schedule-display" class="schedule-grid"></div>
-
-        <!-- Панель администратора -->
-        <div id="admin-panel" class="admin-panel hidden" style="border-top: 3px dashed #34a853; padding-top: 20px;">
-            <h2 id="admin-title">Редактирование расписания</h2>
-            <div id="editor-container"></div>
-            <div id="admin-footer-block" class="admin-footer hidden">
-                <button id="save-btn" class="btn btn-save" style="background-color: #34a853; color: white;">💾 Скачать обновленный data.json</button>
-            </div>
-        </div>
     </div>
 
     <script>
-        // Текстовый пароль для входа в панель редактора
-        const ACCESS_PASSWORD = "Школа2026";
-        let IS_EDITOR_MODE = false; 
+        // Встроенный ID вашей новой Google Таблицы
+        const SPREADSHEET_ID = "1pFC4voBk4ihxJgJahaMM92iWY8TPrKea57A97yAYhYQ";
+        
+        // Автоматическая ссылка для экспорта таблицы в текстовый CSV формат
+        const CSV_URL = `https://google.com{SPREADSHEET_ID}/gviz/tq?tqx=out:csv`;
 
-        const DAYS_OF_WEEK = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
-
-        function generateDefaultSchedule() {
-            const defaultData = {};
-            
-            for (let grade = 1; grade <= 9; grade++) {
-                ["А", "Б", "В", "Г"].forEach(letter => {
-                    const className = `${grade}${letter}`;
-                    defaultData[className] = {};
-                    DAYS_OF_WEEK.forEach(day => {
-                        defaultData[className][day] = ["", "", "", "", "", "", "", ""];
-                    });
-                });
-            }
-            
-            ["10 кл", "11 кл"].forEach(seniorClass => {
-                defaultData[seniorClass] = {};
-                DAYS_OF_WEEK.forEach(day => {
-                    defaultData[seniorClass][day] = ["", "", "", "", "", "", "", ""];
-                });
-            });
-
-            return defaultData;
-        }
-
-        let schoolData = generateDefaultSchedule();
+        let schoolData = {};
+        const DAYS_OF_WEEK = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
 
         const classSelect = document.getElementById('class-select');
         const scheduleDisplay = document.getElementById('schedule-display');
-        const openLoginBtn = document.getElementById('open-login-btn');
-        const logoutBtn = document.getElementById('logout-btn');
-        const loginModal = document.getElementById('login-modal');
-        const closeModalBtn = document.getElementById('close-modal-btn');
-        const loginSubmitBtn = document.getElementById('login-submit-btn');
-        const passwordField = document.getElementById('password-field');
-        const errorText = document.getElementById('error-text');
-        const adminPanel = document.getElementById('admin-panel');
-        const adminTitle = document.getElementById('admin-title');
-        const editorContainer = document.getElementById('editor-container');
-        const saveBtn = document.getElementById('save-btn');
-        const adminFooterBlock = document.getElementById('admin-footer-block');
         const loadingText = document.getElementById('loading-text');
-        // ЧТЕНИЕ ДАННЫХ ИЗ ФАЙЛА DATA.JSON
-        function loadScheduleFromGitHub() {
-            fetch('data.json?cache_bust=' + Date.now()) 
-            .then(res => res.json())
-            .then(resData => {
-                if (resData && Object.keys(resData).length > 0) {
-                    schoolData = resData;
-                }
-                
-                Object.keys(schoolData).forEach(className => {
-                    if (typeof schoolData[className] === 'object') {
-                        DAYS_OF_WEEK.forEach(day => {
-                            if (!schoolData[className][day]) schoolData[className][day] = ["", "", "", "", "", "", "", ""];
-                            while(schoolData[className][day].length < 8) schoolData[className][day].push("");
-                        });
-                    }
-                });
 
+        // Автоматическое чтение данных из Google Sheets
+        function loadScheduleFromGoogle() {
+            fetch(CSV_URL)
+            .then(res => {
+                if (!res.ok) throw new Error("Сеть ответила с ошибкой");
+                return res.text();
+            })
+            .then(csvText => {
+                parseCSVData(csvText);
                 buildClassSelect();
                 loadingText.classList.add('hidden');
                 classSelect.removeAttribute('disabled');
             })
             .catch(err => {
-                console.log("Файл data.json пока не найден, создаем чистый шаблон...");
-                schoolData = generateDefaultSchedule();
-                buildClassSelect();
-                loadingText.classList.add('hidden');
-                classSelect.removeAttribute('disabled');
+                loadingText.textContent = "❌ Ошибка доступа: проверьте, открыт ли доступ к таблице «Все, у кого есть ссылка»";
+                console.error(err);
             });
         }
+        // ВТОРАЯ ЧАСТЬ: АВТОМАТИЧЕСКИЙ РАЗБОР ШКОЛЬНОЙ СЕТКИ И ВЫВОД КАРТОЧЕК
+        function parseCSVData(csvText) {
+            schoolData = {};
+            
+            // Разбиваем текст из Google Таблицы на строчки и ячейки
+            const lines = csvText.split('\n').map(line => {
+                return line.split(',').map(cell => cell.replace(/^"(.*)"\$/, '\$1').trim());
+            });
 
-        // ПРАВИЛЬНАЯ СОРТИРОВКА КЛАССОВ В ВЫПАДАЮЩЕМ СПИСКЕ
+            let currentGrades = []; // Хранилище номеров колонок для классов
+
+            for (let i = 0; i < lines.length; i++) {
+                const row = lines[i];
+                if (!row || row.length === 0) continue;
+
+                // Умная проверка строки-шапки: ищем ячейки с классами (цифра + буква или "кл/КЛ")
+                const isGradeHeader = row.some(cell => /\d+\s*([А-Я]|кл|КЛ)/i.test(cell));
+
+                if (isGradeHeader) {
+                    // Очищаем старые привязки колонок при переходе к новому блоку классов
+                    currentGrades = new Array(row.length).fill(null);
+                    
+                    row.forEach((cell, colIndex) => {
+                        if (/\d+\s*([А-Я]|кл|КЛ)/i.test(cell)) {
+                            // Форматируем имя: убираем пробелы и приводим к верхнему регистру ("5 А" -> "5А", "10 КЛ" -> "10КЛ")
+                            const normalizedClassName = cell.replace(/\s+/g, '').toUpperCase();
+                            currentGrades[colIndex] = normalizedClassName;
+                            
+                            if (!schoolData[normalizedClassName]) {
+                                schoolData[normalizedClassName] = {};
+                                DAYS_OF_WEEK.forEach(day => {
+                                    schoolData[normalizedClassName][day] = ["", "", "", "", "", "", "", ""];
+                                });
+                            }
+                        }
+                    });
+                    continue; // Пропускаем обработку этой строки как строки с предметами
+                }
+
+                // Проверяем, начинается ли строка с номера урока (1, 2, 3...) в первой колонке
+                const lessonNumber = parseInt(row[0]);
+                if (!isNaN(lessonNumber) && lessonNumber >= 0 && lessonNumber <= 8) {
+                    
+                    // Бежим по ячейкам предметов в этой строке
+                    for (let col = 1; col < row.length; col++) {
+                        // Вычисляем, какому классу принадлежит текущая колонка
+                        let targetClass = null;
+                        for (let checkCol = col; checkCol >= 0; checkCol--) {
+                            if (currentGrades[checkCol]) {
+                                targetClass = currentGrades[checkCol];
+                                break;
+                            }
+                        }
+
+                        // Если нашли класс и ячейка урока не пустая — записываем её
+                        if (targetClass && row[col]) {
+                            // На скриншотах день зафиксирован в шапке (Четверг или Среда)
+                            // Для универсальности пишем в текущий день "Четверг" (или можно настроить автоопределение)
+                            const currentDay = "Четверг"; 
+                            
+                            let lessonText = row[col];
+                            
+                            // Если следующая ячейка содержит номер кабинета (цифры или цифры с буквами вроде "305\к2")
+                            if (row[col + 1] && (/\d+/.test(row[col + 1])) && row[col + 1].length <= 8) {
+                                lessonText += ` (каб. ${row[col + 1]})`;
+                            }
+
+                            // Проверяем, чтобы мы случайно не записали номер кабинета как название предмета
+                            if (isNaN(parseInt(row[col])) || row[col].length > 4) {
+                                // Записываем в массив (lessonNumber - 1, чтобы 1-й урок шел под индексом 0)
+                                const index = lessonNumber === 0 ? 0 : lessonNumber - 1;
+                                if (index >= 0 && index < 8) {
+                                    schoolData[targetClass][currentDay][index] = lessonText;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ЗАПОЛНЕНИЕ ВЫПАДАЮЩЕГО СПИСКА СОРТИРОВАННЫМИ КЛАССАМИ
         function buildClassSelect() {
-            classSelect.innerHTML = '<option value="">-- Выберите из списка --</option>';
+            classSelect.innerHTML = '<option value="">-- Выберите класс --</option>';
             
             Object.keys(schoolData).sort((a, b) => {
                 const numA = parseInt(a);
@@ -163,130 +161,39 @@
             });
         }
 
-        // МОДАЛЬНОЕ ОКНО И АВТОРИЗАЦИЯ
-        openLoginBtn.addEventListener('click', () => {
-            loginModal.style.display = 'flex';
-            errorText.style.display = 'none';
-            passwordField.value = '';
-        });
-
-        closeModalBtn.addEventListener('click', () => {
-            loginModal.style.display = 'none';
-        });
-
-        loginSubmitBtn.addEventListener('click', () => {
-            const pass = passwordField.value.trim();
-
-            if (pass === ACCESS_PASSWORD) {
-                IS_EDITOR_MODE = true; 
-                loginModal.style.display = "none";
-                
-                openLoginBtn.classList.add('hidden');
-                logoutBtn.classList.remove('hidden');
-                adminPanel.classList.remove('hidden');
-                adminFooterBlock.classList.remove('hidden');
-                
-                alert("🔓 Успешный вход! Выберите класс в списке сверху, чтобы изменить его уроки.");
-                if (classSelect.value) renderEditor(classSelect.value);
-            } else {
-                errorText.style.display = "block";
-            }
-        });
-
-        logoutBtn.addEventListener('click', () => {
-            IS_EDITOR_MODE = false;
-            location.reload();
-        });
-
-        // СЛУШАТЕЛЬ СМЕНЫ КЛАССА В ВЫПАДАЮЩЕМ СПИСКЕ
+        // ОБРАБОТЧИК ВЫБОРА КЛАССА В СПИСКЕ
         classSelect.addEventListener('change', () => {
-            const selectedClass = classSelect.value;
-            renderSchedule(selectedClass);
-            if (IS_EDITOR_MODE && selectedClass) {
-                renderEditor(selectedClass);
-            }
+            renderSchedule(classSelect.value);
         });
 
-        // ОТОБРАЖЕНИЕ РАСПИСАНИЯ ДЛЯ КЛИЕНТОВ (ТАБЛИЦА ПРОСМОТРА)
+        // СБОРКА КАРТОЧЕК С УРОКАМИ ДЛЯ УЧЕНИКОВ
         function renderSchedule(className) {
             scheduleDisplay.innerHTML = '';
             if (!className || !schoolData[className]) return;
+            
             const days = schoolData[className];
             
             Object.keys(days).forEach(dayName => {
+                // Выводим карточку дня только в том случае, если там заполнен хотя бы один предмет
+                const hasLessons = days[dayName].some(lesson => lesson.trim() !== "");
+                if (!hasLessons) return;
+
                 const dayCard = document.createElement('div');
                 dayCard.className = 'day-card';
+                
                 let lessonsHtml = `<h3>${dayName}</h3><ol>`;
                 days[dayName].forEach(lesson => { 
                     lessonsHtml += `<li>${lesson || "<span style='color:#bbb;'>нет урока</span>"}</li>`; 
                 });
                 lessonsHtml += '</ol>';
+                
                 dayCard.innerHTML = lessonsHtml;
                 scheduleDisplay.appendChild(dayCard);
             });
         }
 
-        // ИСПРАВЛЕННАЯ ФУНКЦИЯ ГЕНЕРАЦИИ АДМИН-ИНПУТОВ ПОД ВАШ СТИЛЬ CSS
-        function renderEditor(className) {
-            editorContainer.innerHTML = '';
-            adminTitle.textContent = `Редактирование расписания для: ${className}`;
-            const days = schoolData[className];
-
-            Object.keys(days).forEach(dayName => {
-                const dayBlock = document.createElement('div');
-                dayBlock.className = 'editor-day-block';
-                dayBlock.innerHTML = `<h4>${dayName}</h4>`;
-                
-                days[dayName].forEach((lesson, index) => {
-                    const inputRow = document.createElement('div');
-                    inputRow.className = 'input-row';
-                    
-                    const spanNum = document.createElement('span');
-                    spanNum.textContent = `Урок ${index + 1}:`;
-                    
-                    const input = document.createElement('input');
-                    input.type = 'text';
-                    input.className = 'lesson-input';
-                    input.value = lesson;
-                    input.placeholder = "Название предмета...";
-                    
-                    input.addEventListener('input', (e) => {
-                        schoolData[className][dayName][index] = e.target.value.trim();
-                    });
-                    
-                    inputRow.appendChild(spanNum);
-                    inputRow.appendChild(input);
-                    dayBlock.appendChild(inputRow);
-                });
-                
-                editorContainer.appendChild(dayBlock);
-            });
-        }
-
-        // ФУНКЦИЯ СКАЧИВАНИЯ ОБНОВЛЕННОГО ФАЙЛА ДЛЯ УЧИТЕЛЯ
-        saveBtn.addEventListener('click', () => {
-            try {
-                // Превращаем измененные в админке данные в красивый текстовый JSON формат
-                const dataStr = JSON.stringify(schoolData, null, 2);
-                const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-                
-                // Создаем виртуальную ссылку для скачивания файла на компьютер
-                const exportFileDefaultName = 'data.json';
-                const linkElement = document.createElement('a');
-                linkElement.setAttribute('href', dataUri);
-                linkElement.setAttribute('download', exportFileDefaultName);
-                
-                // Имитируем клик, чтобы файл скачался в загрузки
-                linkElement.click();
-                
-                alert("🎉 Файл data.json успешно скачан на ваш компьютер!\n\nТеперь просто зайдите на сайт GitHub в ваш репозиторий и загрузите скачанный файл через меню: Add file -> Upload files.");
-            } catch (err) {
-                alert("❌ Ошибка при формировании файла: " + err.message);
-            }
-        });
-
-        // Запуск приложения
-        loadScheduleFromGitHub();
+        // АВТОЗАПУСК СИНХРОНИЗАЦИИ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ
+        loadScheduleFromGoogle();
     </script>
 </body>
 </html>
