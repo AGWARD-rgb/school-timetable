@@ -34,7 +34,7 @@
             <span id="close-modal-btn" class="close-btn">&times;</span>
             <h2>🔐 Вход для редактора</h2>
             <div id="error-text" class="error-msg">Неверный пароль доступа!</div>
-            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Для editing введите текстовый пароль школы</p>
+            <p style="font-size: 13px; color: #666; margin-bottom: 15px;">Введите пароль редактора для изменения расписания</p>
             <input type="password" id="password-field" placeholder="Пароль доступа">
             <button id="login-submit-btn" class="btn" style="background-color: #34a853; color: white; width: 100%;">Авторизоваться</button>
         </div>
@@ -55,7 +55,7 @@
             <button id="logout-btn" class="btn btn-cancel hidden">Выйти из режима редактора</button>
         </div>
 
-        <div id="loading-text" class="loading-banner">🔄 Синхронизация расписания с сервером...</div>
+        <div id="loading-text" class="loading-banner">🔄 Синхронизация расписания...</div>
         <div id="schedule-display" class="schedule-grid"></div>
 
         <!-- Панель администратора -->
@@ -63,30 +63,15 @@
             <h2 id="admin-title">Редактирование расписания</h2>
             <div id="editor-container"></div>
             <div id="admin-footer-block" class="admin-footer hidden">
-                <button id="save-btn" class="btn btn-save" style="background-color: #34a853; color: white;">💾 Сохранить изменения в облако</button>
+                <button id="save-btn" class="btn btn-save" style="background-color: #34a853; color: white;">💾 Скачать обновленный data.json</button>
             </div>
         </div>
     </div>
 
     <script>
-        const GH_USER = "AGWARD-rgb"; 
-        const GH_REPO = "school-timetable"; 
-        
-        let ABSOLUTELY_NEW_TOKEN_HOLDER = ""; 
-
-        function decryptToken(enteredPassword) {
-            // Ваши 3 оригинальные части токена:
-            const part1 = "ghp_eN1hAvb6c5i"; 
-            const part2 = "dkNKOkc0650BBH";
-            const part3 = "HINl93wZyn6";
-            
-            try {
-                if (enteredPassword === "Школа2026") { 
-                    return (part1 + part2 + part3).trim().replace(/[^a-zA-Z0-9_]/g, ''); 
-                }
-            } catch(e) { console.error(e); }
-            return null;
-        }
+        // Текстовый пароль для входа в панель редактора
+        const ACCESS_PASSWORD = "Школа2026";
+        let IS_EDITOR_MODE = false; 
 
         const DAYS_OF_WEEK = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
 
@@ -130,7 +115,7 @@
         const saveBtn = document.getElementById('save-btn');
         const adminFooterBlock = document.getElementById('admin-footer-block');
         const loadingText = document.getElementById('loading-text');
-        // ЧТЕНИЕ ДАННЫХ ИЗ ОБЛАКА GITHUB
+        // ЧТЕНИЕ ДАННЫХ ИЗ ФАЙЛА DATA.JSON
         function loadScheduleFromGitHub() {
             fetch('data.json?cache_bust=' + Date.now()) 
             .then(res => res.json())
@@ -153,7 +138,7 @@
                 classSelect.removeAttribute('disabled');
             })
             .catch(err => {
-                console.log("Создаем чистый шаблон классов...");
+                console.log("Файл data.json пока не найден, создаем чистый шаблон...");
                 schoolData = generateDefaultSchedule();
                 buildClassSelect();
                 loadingText.classList.add('hidden');
@@ -191,10 +176,9 @@
 
         loginSubmitBtn.addEventListener('click', () => {
             const pass = passwordField.value.trim();
-            const decrypted = decryptToken(pass);
 
-            if (decrypted) {
-                ABSOLUTELY_NEW_TOKEN_HOLDER = decrypted; 
+            if (pass === ACCESS_PASSWORD) {
+                IS_EDITOR_MODE = true; 
                 loginModal.style.display = "none";
                 
                 openLoginBtn.classList.add('hidden');
@@ -202,7 +186,7 @@
                 adminPanel.classList.remove('hidden');
                 adminFooterBlock.classList.remove('hidden');
                 
-                alert("🔓 Успешный вход! Выберите класс в списке сверху, чтобы открыть его таблицу для изменения.");
+                alert("🔓 Успешный вход! Выберите класс в списке сверху, чтобы изменить его уроки.");
                 if (classSelect.value) renderEditor(classSelect.value);
             } else {
                 errorText.style.display = "block";
@@ -210,7 +194,7 @@
         });
 
         logoutBtn.addEventListener('click', () => {
-            ABSOLUTELY_NEW_TOKEN_HOLDER = "";
+            IS_EDITOR_MODE = false;
             location.reload();
         });
 
@@ -218,7 +202,7 @@
         classSelect.addEventListener('change', () => {
             const selectedClass = classSelect.value;
             renderSchedule(selectedClass);
-            if (ABSOLUTELY_NEW_TOKEN_HOLDER && selectedClass) {
+            if (IS_EDITOR_MODE && selectedClass) {
                 renderEditor(selectedClass);
             }
         });
@@ -279,54 +263,27 @@
             });
         }
 
-        // ФИНАЛЬНАЯ ПЕРЕИМЕНОВАННАЯ ФУНКЦИЯ ОТПРАВКИ, КОТОРУЮ БРАУЗЕР НЕ СМОЖЕТ СБЛОКИРОВАТЬ СТАРЫМ КЭШЕМ
-        function executeCloudSaveOperation() {
-            if (!ABSOLUTELY_NEW_TOKEN_HOLDER) {
-                alert("Ошибка авторизации. Перезагрузите страницу.");
-                return;
+        // ФУНКЦИЯ СКАЧИВАНИЯ ОБНОВЛЕННОГО ФАЙЛА ДЛЯ УЧИТЕЛЯ
+        saveBtn.addEventListener('click', () => {
+            try {
+                // Превращаем измененные в админке данные в красивый текстовый JSON формат
+                const dataStr = JSON.stringify(schoolData, null, 2);
+                const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+                
+                // Создаем виртуальную ссылку для скачивания файла на компьютер
+                const exportFileDefaultName = 'data.json';
+                const linkElement = document.createElement('a');
+                linkElement.setAttribute('href', dataUri);
+                linkElement.setAttribute('download', exportFileDefaultName);
+                
+                // Имитируем клик, чтобы файл скачался в загрузки
+                linkElement.click();
+                
+                alert("🎉 Файл data.json успешно скачан на ваш компьютер!\n\nТеперь просто зайдите на сайт GitHub в ваш репозиторий и загрузите скачанный файл через меню: Add file -> Upload files.");
+            } catch (err) {
+                alert("❌ Ошибка при формировании файла: " + err.message);
             }
-
-            const activeSecureKey = ABSOLUTELY_NEW_TOKEN_HOLDER.trim().replace(/[^a-zA-Z0-9_]/g, '');
-
-            saveBtn.disabled = true;
-            saveBtn.classList.add('btn-cancel'); 
-            saveBtn.textContent = "⏳ Робот обновляет облако...";
-
-            // Использование прямого официального адреса API GitHub
-            const finalEndpointUrl = "https://github.com";
-
-            fetch(finalEndpointUrl, {
-                method: 'POST',
-                headers: {
-                    'Authorization': 'token ' + activeSecureKey,
-                    'Accept': 'application/vnd.github.v3+json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    event_type: 'update-json',
-                    client_payload: {
-                        schedule_data: JSON.stringify(schoolData, null, 2)
-                    }
-                })
-            })
-            .then(response => {
-                if (response.ok) {
-                    alert("🎉 Полный успех! Робот GitHub принял измененную базу и перепишет файл data.json в течение 15 секунд.");
-                    setTimeout(() => location.reload(), 3000);
-                } else {
-                    throw new Error("GitHub отклонил операцию. Код ошибки: " + response.status);
-                }
-            })
-            .catch(err => {
-                alert("❌ Ошибка записи в облако: " + err.message);
-                saveBtn.disabled = false;
-                saveBtn.classList.remove('btn-cancel');
-                saveBtn.textContent = "💾 Сохранить изменения в облако";
-            });
-        }
-
-        // Назначаем нашу новую функцию на клик по кнопке
-        saveBtn.addEventListener('click', executeCloudSaveOperation);
+        });
 
         // Запуск приложения
         loadScheduleFromGitHub();
