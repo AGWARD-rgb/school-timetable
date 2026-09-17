@@ -24,7 +24,7 @@
                 </select>
             </div>
             <!-- Ссылка-кнопка для быстрого перехода учителей к редактированию Google Таблицы -->
-            <a href="https://docs.google.com/spreadsheets/d/1pFC4voBk4ihxJgJahaMM92iWY8TPrKea57A97yAYhYQ/edit" target="_blank" class="btn" style="background-color: #34a853; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: 600;">✏️ Открыть Google Таблицу (для учителей)</a>
+            <a href="https://google.com" target="_blank" class="btn" style="background-color: #34a853; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: 600;">✏️ Открыть Google Таблицу (для учителей)</a>
         </div>
 
         <div id="loading-text" class="loading-banner">🔄 Синхронизация расписания с Google Таблицей...</div>
@@ -35,8 +35,8 @@
         // Встроенный ID вашей новой Google Таблицы
         const SPREADSHEET_ID = "1pFC4voBk4ihxJgJahaMM92iWY8TPrKea57A97yAYhYQ";
         
-        // Автоматическая ссылка для экспорта таблицы в текстовый CSV формат
-        const CSV_URL = `https://google.com{SPREADSHEET_ID}/gviz/tq?tqx=out:csv`;
+        // Автоматическая ссылка для экспорта опубликованной таблицы в текстовый CSV формат
+        const CSV_URL = `https://google.com{SPREADSHEET_ID}/pub?output=csv`;
 
         let schoolData = {};
         const DAYS_OF_WEEK = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
@@ -59,7 +59,7 @@
                 classSelect.removeAttribute('disabled');
             })
             .catch(err => {
-                loadingText.textContent = "❌ Ошибка доступа: проверьте, открыт ли доступ к таблице «Все, у кого есть ссылка»";
+                loadingText.textContent = "❌ Ошибка доступа: проверьте, опубликована ли таблица в интернете";
                 console.error(err);
             });
         }
@@ -103,7 +103,7 @@
                 }
 
                 // Проверяем, начинается ли строка с номера урока (1, 2, 3...) в первой колонке
-                const lessonNumber = parseInt(row[0]);
+                const lessonNumber = parseInt(row);
                 if (!isNaN(lessonNumber) && lessonNumber >= 0 && lessonNumber <= 8) {
                     
                     // Бежим по ячейкам предметов в этой строке
