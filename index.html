@@ -5,195 +5,87 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Электронное расписание школы</title>
     <link rel="stylesheet" href="style.css">
-    <style>
-        .loading-banner { text-align: center; color: #666; font-size: 16px; margin: 20px 0; }
-        .hidden { display: none !important; }
-    </style>
 </head>
 <body>
 
-    <!-- ОСНОВНОЙ ИНТЕРФЕЙС САЙТА -->
     <div class="container">
         <h1>🏫 Расписание уроков</h1>
         
         <div class="controls-row">
             <div class="select-box">
                 <label for="class-select">Выберите класс: </label>
-                <select id="class-select" disabled>
-                    <option value="">-- Загрузка базы... --</option>
+                <select id="class-select">
+                    <option value="">-- Выберите из списка --</option>
                 </select>
             </div>
-            <!-- Ссылка-кнопка для быстрого перехода учителей к редактированию Google Таблицы -->
-            <a href="https://google.com" target="_blank" class="btn" style="background-color: #34a853; color: white; text-decoration: none; padding: 10px 20px; border-radius: 6px; font-weight: 600;">✏️ Открыть Google Таблицу (для учителей)</a>
+            <span style="color: #666; font-size: 14px;">Режим просмотра</span>
         </div>
 
-        <div id="loading-text" class="loading-banner">🔄 Синхронизация расписания с Google Таблицей...</div>
+        <!-- Сюда выводится расписание -->
         <div id="schedule-display" class="schedule-grid"></div>
     </div>
 
     <script>
-        // Встроенный ID вашей новой Google Таблицы
-        const SPREADSHEET_ID = "1pFC4voBk4ihxJgJahaMM92iWY8TPrKea57A97yAYhYQ";
-        
-        // Автоматическая ссылка для экспорта опубликованной таблицы в текстовый CSV формат
-        const CSV_URL = `https://google.com{SPREADSHEET_ID}/pub?output=csv`;
+        // Добавлена Суббота в массив дней недели
+        const DAYS_OF_WEEK = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
 
-        let schoolData = {};
-        const DAYS_OF_WEEK = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"];
+        function generateDefaultSchedule() {
+            const defaultData = {};
+            for (let grade = 5; grade <= 9; grade++) {
+                ["А", "Б", "В", "Г"].forEach(letter => {
+                    const className = `${grade}${letter}`;
+                    defaultData[className] = {};
+                    DAYS_OF_WEEK.forEach(day => {
+                        defaultData[className][day] = ["", "", "", "", "", "", "", ""];
+                    });
+                });
+            }
+            return defaultData;
+        }
+
+        let schoolData = JSON.parse(localStorage.getItem('schoolSchedule')) || generateDefaultSchedule();
+
+        // Проверка: если в старой сохраненной базе не было Субботы, добавляем её на лету
+        Object.keys(schoolData).forEach(className => {
+            DAYS_OF_WEEK.forEach(day => {
+                if (!schoolData[className][day]) {
+                    schoolData[className][day] = ["", "", "", "", "", "", "", ""];
+                }
+            });
+        });
 
         const classSelect = document.getElementById('class-select');
         const scheduleDisplay = document.getElementById('schedule-display');
-        const loadingText = document.getElementById('loading-text');
 
-        // Автоматическое чтение данных из Google Sheets
-        function loadScheduleFromGoogle() {
-            fetch(CSV_URL)
-            .then(res => {
-                if (!res.ok) throw new Error("Сеть ответила с ошибкой");
-                return res.text();
-            })
-            .then(csvText => {
-                parseCSVData(csvText);
-                buildClassSelect();
-                loadingText.classList.add('hidden');
-                classSelect.removeAttribute('disabled');
-            })
-            .catch(err => {
-                loadingText.textContent = "❌ Ошибка доступа: проверьте, опубликована ли таблица в интернете";
-                console.error(err);
-            });
-        }
-        // ВТОРАЯ ЧАСТЬ: АВТОМАТИЧЕСКИЙ РАЗБОР ШКОЛЬНОЙ СЕТКИ И ВЫВОД КАРТОЧЕК
-        function parseCSVData(csvText) {
-            schoolData = {};
-            
-            // Разбиваем текст из Google Таблицы на строчки и ячейки
-            const lines = csvText.split('\n').map(line => {
-                return line.split(',').map(cell => cell.replace(/^"(.*)"\$/, '\$1').trim());
-            });
-
-            let currentGrades = []; // Хранилище номеров колонок для классов
-
-            for (let i = 0; i < lines.length; i++) {
-                const row = lines[i];
-                if (!row || row.length === 0) continue;
-
-                // Умная проверка строки-шапки: ищем ячейки с классами (цифра + буква или "кл/КЛ")
-                const isGradeHeader = row.some(cell => /\d+\s*([А-Я]|кл|КЛ)/i.test(cell));
-
-                if (isGradeHeader) {
-                    // Очищаем старые привязки колонок при переходе к новому блоку классов
-                    currentGrades = new Array(row.length).fill(null);
-                    
-                    row.forEach((cell, colIndex) => {
-                        if (/\d+\s*([А-Я]|кл|КЛ)/i.test(cell)) {
-                            // Форматируем имя: убираем пробелы и приводим к верхнему регистру ("5 А" -> "5А", "10 КЛ" -> "10КЛ")
-                            const normalizedClassName = cell.replace(/\s+/g, '').toUpperCase();
-                            currentGrades[colIndex] = normalizedClassName;
-                            
-                            if (!schoolData[normalizedClassName]) {
-                                schoolData[normalizedClassName] = {};
-                                DAYS_OF_WEEK.forEach(day => {
-                                    schoolData[normalizedClassName][day] = ["", "", "", "", "", "", "", ""];
-                                });
-                            }
-                        }
-                    });
-                    continue; // Пропускаем обработку этой строки как строки с предметами
-                }
-
-                // Проверяем, начинается ли строка с номера урока (1, 2, 3...) в первой колонке
-                const lessonNumber = parseInt(row);
-                if (!isNaN(lessonNumber) && lessonNumber >= 0 && lessonNumber <= 8) {
-                    
-                    // Бежим по ячейкам предметов в этой строке
-                    for (let col = 1; col < row.length; col++) {
-                        // Вычисляем, какому классу принадлежит текущая колонка
-                        let targetClass = null;
-                        for (let checkCol = col; checkCol >= 0; checkCol--) {
-                            if (currentGrades[checkCol]) {
-                                targetClass = currentGrades[checkCol];
-                                break;
-                            }
-                        }
-
-                        // Если нашли класс и ячейка урока не пустая — записываем её
-                        if (targetClass && row[col]) {
-                            // На скриншотах день зафиксирован в шапке (Четверг или Среда)
-                            // Для универсальности пишем в текущий день "Четверг" (или можно настроить автоопределение)
-                            const currentDay = "Четверг"; 
-                            
-                            let lessonText = row[col];
-                            
-                            // Если следующая ячейка содержит номер кабинета (цифры или цифры с буквами вроде "305\к2")
-                            if (row[col + 1] && (/\d+/.test(row[col + 1])) && row[col + 1].length <= 8) {
-                                lessonText += ` (каб. ${row[col + 1]})`;
-                            }
-
-                            // Проверяем, чтобы мы случайно не записали номер кабинета как название предмета
-                            if (isNaN(parseInt(row[col])) || row[col].length > 4) {
-                                // Записываем в массив (lessonNumber - 1, чтобы 1-й урок шел под индексом 0)
-                                const index = lessonNumber === 0 ? 0 : lessonNumber - 1;
-                                if (index >= 0 && index < 8) {
-                                    schoolData[targetClass][currentDay][index] = lessonText;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ЗАПОЛНЕНИЕ ВЫПАДАЮЩЕГО СПИСКА СОРТИРОВАННЫМИ КЛАССАМИ
-        function buildClassSelect() {
-            classSelect.innerHTML = '<option value="">-- Выберите класс --</option>';
-            
-            Object.keys(schoolData).sort((a, b) => {
-                const numA = parseInt(a);
-                const numB = parseInt(b);
-                if (numA !== numB) return numA - numB;
-                return a.localeCompare(b);
-            }).forEach(className => {
-                const option = document.createElement('option');
-                option.value = className; 
-                option.textContent = className;
-                classSelect.appendChild(option);
-            });
-        }
-
-        // ОБРАБОТЧИК ВЫБОРА КЛАССА В СПИСКЕ
-        classSelect.addEventListener('change', () => {
-            renderSchedule(classSelect.value);
+        Object.keys(schoolData).sort((a, b) => parseInt(a) - parseInt(b) || a.localeCompare(b)).forEach(className => {
+            const option = document.createElement('option');
+            option.value = className;
+            option.textContent = className;
+            classSelect.appendChild(option);
         });
 
-        // СБОРКА КАРТОЧЕК С УРОКАМИ ДЛЯ УЧЕНИКОВ
-        function renderSchedule(className) {
+        classSelect.addEventListener('change', (e) => {
+            const className = e.target.value;
             scheduleDisplay.innerHTML = '';
             if (!className || !schoolData[className]) return;
-            
-            const days = schoolData[className];
-            
-            Object.keys(days).forEach(dayName => {
-                // Выводим карточку дня только в том случае, если там заполнен хотя бы один предмет
-                const hasLessons = days[dayName].some(lesson => lesson.trim() !== "");
-                if (!hasLessons) return;
 
+            const days = schoolData[className];
+            Object.keys(days).forEach(dayName => {
                 const dayCard = document.createElement('div');
                 dayCard.className = 'day-card';
                 
                 let lessonsHtml = `<h3>${dayName}</h3><ol>`;
-                days[dayName].forEach(lesson => { 
-                    lessonsHtml += `<li>${lesson || "<span style='color:#bbb;'>нет урока</span>"}</li>`; 
+                days[dayName].forEach(lesson => {
+                    lessonsHtml += `<li>${lesson}</li>`;
                 });
                 lessonsHtml += '</ol>';
                 
                 dayCard.innerHTML = lessonsHtml;
                 scheduleDisplay.appendChild(dayCard);
             });
-        }
-
-        // АВТОЗАПУСК СИНХРОНИЗАЦИИ ПРИ ЗАГРУЗКЕ СТРАНИЦЫ
-        loadScheduleFromGoogle();
+        });
     </script>
 </body>
 </html>
+
+
